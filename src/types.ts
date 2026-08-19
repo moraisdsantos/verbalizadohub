@@ -69,3 +69,78 @@ export type Proposal = {
   updated_at: string;
   proposal_items: ProposalItem[];
 };
+
+export type ProjectStatus =
+  | "planning"
+  | "active"
+  | "paused"
+  | "completed"
+  | "cancelled";
+
+export type Project = {
+  id: string;
+  client_id: string;
+  name: string;
+  status: ProjectStatus;
+  start_date: string | null;
+  end_date: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContractSource = "pdf" | "proposal" | "manual";
+
+export type ContractStatus =
+  | "draft"
+  | "review"
+  | "signed"
+  | "active"
+  | "expired"
+  | "cancelled";
+
+export type Contract = {
+  id: string;
+  project_id: string;
+  client_id: string;
+  proposal_id: string | null;
+  source: ContractSource;
+  title: string;
+  contract_number: string | null;
+  status: ContractStatus;
+  drive_file_id: string;
+  drive_url: string;
+  drive_mime_type: string;
+  effective_date: string | null;
+  expires_at: string | null;
+  signed_at: string | null;
+  total_value: number | null;
+  service_description: string | null;
+  payment_terms: string | null;
+  client_data: Record<string, unknown>;
+  extracted_data: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContractFields = {
+  title: string | null;
+  contract_number: string | null;
+  client_legal_name: string | null;
+  client_trade_name: string | null;
+  client_tax_id: string | null;
+  client_contact_name: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  client_address: string | null;
+  client_city: string | null;
+  client_state: string | null;
+  client_postal_code: string | null;
+  service_description: string | null;
+  effective_date: string | null;
+  expires_at: string | null;
+  signed_at: string | null;
+  total_value: number | null;
+  payment_terms: string | null;
+};
