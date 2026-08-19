@@ -32,7 +32,8 @@ const modules: HubModule[] = [
     description:
       "Gere, leia e acompanhe contratos integrados ao Google Drive.",
     icon: "contract",
-    status: "planned",
+    status: "available",
+    href: "#/contratos",
   },
   {
     code: "04",
