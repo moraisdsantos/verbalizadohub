@@ -7,6 +7,7 @@ import {
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import AudioPlayer from "./components/AudioPlayer";
 import ClientsPage from "./components/ClientsPage";
+import ContractsPage from "./components/ContractsPage";
 import HomePage from "./components/HomePage";
 import HubLogin, { HubAccessLoading } from "./components/HubLogin";
 import QrDialog from "./components/QrDialog";
@@ -14,11 +15,12 @@ import { extractDriveFileId } from "./lib/drive";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { AudioWork, DriveMetadata } from "./types";
 
-type HubRoute = "home" | "catalogo" | "clientes";
+type HubRoute = "home" | "catalogo" | "clientes" | "contratos";
 
 function getHubRoute(): HubRoute {
   if (window.location.hash === "#/catalogo") return "catalogo";
   if (window.location.hash === "#/clientes") return "clientes";
+  if (window.location.hash === "#/contratos") return "contratos";
   return "home";
 }
 
@@ -82,6 +84,8 @@ export default function App() {
       document.title = "Catálogo de audiodescrições | ver.balizado";
     } else if (route === "clientes") {
       document.title = "Clientes e propostas | ver.balizado";
+    } else if (route === "contratos") {
+      document.title = "Contratos | ver.balizado";
     } else {
       document.title = "Hub operacional | ver.balizado";
     }
@@ -422,6 +426,33 @@ export default function App() {
 
     return (
       <ClientsPage
+        userEmail={session.user.email ?? "Usuário autorizado"}
+        onSignOut={signOut}
+      />
+    );
+  }
+
+  if (route === "contratos") {
+    if (!authReady) {
+      return <HubAccessLoading />;
+    }
+
+    if (!session) {
+      return (
+        <HubLogin
+          email={email}
+          password={password}
+          message={loginMessage}
+          isSubmitting={isSigningIn}
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onSubmit={signInWithPassword}
+        />
+      );
+    }
+
+    return (
+      <ContractsPage
         userEmail={session.user.email ?? "Usuário autorizado"}
         onSignOut={signOut}
       />
