@@ -50,7 +50,8 @@ const modules: HubModule[] = [
     description:
       "Acompanhe receitas, custos, liquidez e margem por período e projeto.",
     icon: "finance",
-    status: "planned",
+    status: "available",
+    href: "#/financeiro",
   },
 ];
 
