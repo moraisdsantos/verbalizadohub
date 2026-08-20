@@ -50,6 +50,73 @@ export default function ProposalPreview({
     .filter(Boolean)
     .join(" · ");
 
+  function exportProposal() {
+    const proposalElement = document.querySelector<HTMLElement>(
+      ".proposal-print-area",
+    );
+    if (!proposalElement) return;
+
+    const printFrame = document.createElement("iframe");
+    printFrame.title = "Impressão da proposta";
+    printFrame.setAttribute("aria-hidden", "true");
+    Object.assign(printFrame.style, {
+      position: "fixed",
+      right: "0",
+      bottom: "0",
+      width: "0",
+      height: "0",
+      border: "0",
+      opacity: "0",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(printFrame);
+
+    const printDocument = printFrame.contentDocument;
+    const printWindow = printFrame.contentWindow;
+    if (!printDocument || !printWindow) {
+      printFrame.remove();
+      return;
+    }
+
+    const styles = Array.from(
+      document.querySelectorAll<HTMLStyleElement | HTMLLinkElement>(
+        'style, link[rel="stylesheet"]',
+      ),
+    )
+      .map((element) => element.outerHTML)
+      .join("\n");
+
+    const removeFrame = () => {
+      window.setTimeout(() => printFrame.remove(), 300);
+    };
+
+    printWindow.addEventListener("afterprint", removeFrame, { once: true });
+    printFrame.addEventListener(
+      "load",
+      () => {
+        window.setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 250);
+      },
+      { once: true },
+    );
+
+    printDocument.open();
+    printDocument.write(`<!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <base href="${document.baseURI}" />
+          <title>${proposal.proposal_number}</title>
+          ${styles}
+        </head>
+        <body>${proposalElement.outerHTML}</body>
+      </html>`);
+    printDocument.close();
+  }
+
   return (
     <div className="proposal-preview-backdrop" role="presentation">
       <div
@@ -67,7 +134,7 @@ export default function ProposalPreview({
             <button type="button" className="secondary-action" onClick={onClose}>
               Fechar
             </button>
-            <button type="button" className="primary-action" onClick={() => window.print()}>
+            <button type="button" className="primary-action" onClick={exportProposal}>
               Exportar / salvar PDF
             </button>
           </div>
