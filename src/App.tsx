@@ -10,17 +10,19 @@ import ClientsPage from "./components/ClientsPage";
 import ContractsPage from "./components/ContractsPage";
 import HomePage from "./components/HomePage";
 import HubLogin, { HubAccessLoading } from "./components/HubLogin";
+import ProjectsPage from "./components/ProjectsPage";
 import QrDialog from "./components/QrDialog";
 import { extractDriveFileId } from "./lib/drive";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { AudioWork, DriveMetadata } from "./types";
 
-type HubRoute = "home" | "catalogo" | "clientes" | "contratos";
+type HubRoute = "home" | "catalogo" | "clientes" | "contratos" | "projetos";
 
 function getHubRoute(): HubRoute {
   if (window.location.hash === "#/catalogo") return "catalogo";
   if (window.location.hash === "#/clientes") return "clientes";
   if (window.location.hash === "#/contratos") return "contratos";
+  if (window.location.hash === "#/projetos") return "projetos";
   return "home";
 }
 
@@ -86,6 +88,8 @@ export default function App() {
       document.title = "Clientes e propostas | ver.balizado";
     } else if (route === "contratos") {
       document.title = "Contratos | ver.balizado";
+    } else if (route === "projetos") {
+      document.title = "Visão de projetos | ver.balizado";
     } else {
       document.title = "Hub operacional | ver.balizado";
     }
@@ -453,6 +457,33 @@ export default function App() {
 
     return (
       <ContractsPage
+        userEmail={session.user.email ?? "Usuário autorizado"}
+        onSignOut={signOut}
+      />
+    );
+  }
+
+  if (route === "projetos") {
+    if (!authReady) {
+      return <HubAccessLoading />;
+    }
+
+    if (!session) {
+      return (
+        <HubLogin
+          email={email}
+          password={password}
+          message={loginMessage}
+          isSubmitting={isSigningIn}
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onSubmit={signInWithPassword}
+        />
+      );
+    }
+
+    return (
+      <ProjectsPage
         userEmail={session.user.email ?? "Usuário autorizado"}
         onSignOut={signOut}
       />
