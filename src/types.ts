@@ -119,6 +119,7 @@ export type Contract = {
   payment_terms: string | null;
   client_data: Record<string, unknown>;
   extracted_data: Record<string, unknown>;
+  archived_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -172,7 +173,7 @@ export type ProjectActionPriority = "low" | "medium" | "high" | "urgent";
 export type ProjectAction = {
   id: string;
   project_id: string;
-  stage_id: string | null;
+  stage_id: string;
   description: string;
   assignee: string | null;
   due_date: string;
