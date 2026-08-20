@@ -201,3 +201,20 @@ export type ProjectCost = {
   created_at: string;
   updated_at: string;
 };
+
+export type ProjectTimeEntryType = "planned" | "actual";
+
+export type ProjectTimeEntry = {
+  id: string;
+  project_id: string;
+  professional_name: string;
+  role: string | null;
+  entry_date: string;
+  hours: number;
+  hourly_rate: number;
+  entry_type: ProjectTimeEntryType;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
