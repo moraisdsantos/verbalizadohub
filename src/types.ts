@@ -167,6 +167,8 @@ export type ProjectStage = {
 
 export type ProjectActionStatus = "pending" | "completed" | "cancelled";
 
+export type ProjectActionPriority = "low" | "medium" | "high" | "urgent";
+
 export type ProjectAction = {
   id: string;
   project_id: string;
@@ -175,6 +177,8 @@ export type ProjectAction = {
   assignee: string | null;
   due_date: string;
   status: ProjectActionStatus;
+  priority: ProjectActionPriority;
+  notes: string | null;
   completed_at: string | null;
   created_by: string | null;
   created_at: string;
