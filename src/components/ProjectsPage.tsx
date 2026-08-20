@@ -6,10 +6,13 @@ import {
   useMemo,
   useState,
 } from "react";
+import ContractEditDialog from "./ContractEditDialog";
+import { contractStatusLabels, projectStatusFromContract } from "../lib/contracts";
 import { ensureActiveSession, isExpiredJwtError, supabase } from "../lib/supabase";
 import type {
   Client,
   Contract,
+  ContractStatus,
   Project,
   ProjectAction,
   ProjectActionPriority,
@@ -25,16 +28,7 @@ type ProjectsPageProps = {
   onSignOut: () => void;
 };
 
-type ContractSummary = Pick<
-  Contract,
-  | "id"
-  | "title"
-  | "status"
-  | "drive_url"
-  | "total_value"
-  | "effective_date"
-  | "expires_at"
->;
+type ContractSummary = Contract;
 
 type ProjectWithRelations = Project & {
   clients: Pick<Client, "legal_name" | "trade_name"> | null;
@@ -397,7 +391,7 @@ function emptyStage(project: ProjectWithRelations | null): StageDraft {
   return { title: "", icon: "milestone", status: "planned", start_date: start, end_date: end };
 }
 
-export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps) {
+export default function ProjectsPage(_props: ProjectsPageProps) {
   const [projects, setProjects] = useState<ProjectWithRelations[]>([]);
   const [allStages, setAllStages] = useState<ProjectStage[]>([]);
   const [allActions, setAllActions] = useState<ProjectAction[]>([]);
@@ -435,6 +429,7 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
     notes: "",
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [editingContract, setEditingContract] = useState<ContractSummary | null>(null);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -493,7 +488,7 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
     const runQueries = () => Promise.all([
       client
         .from("projects")
-        .select("*, clients(legal_name,trade_name), contracts(id,title,status,drive_url,total_value,effective_date,expires_at)")
+        .select("*, clients(legal_name,trade_name), contracts(*)")
         .order("created_at", { ascending: false }),
       client.from("project_stages").select("*").order("position").order("start_date"),
       client.from("project_actions").select("*").order("due_date"),
@@ -610,14 +605,61 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
     setSelectedProjectId((current) => current === projectId ? "" : projectId);
   }
 
-  async function updateProjectStatus(status: ProjectStatus) {
-    if (!supabase || !selectedProject) return;
-    const { error } = await supabase.from("projects").update({ status }).eq("id", selectedProject.id);
-    if (error) setMessage(`Não foi possível alterar a situação: ${error.message}`);
-    else {
-      setProjects((current) => current.map((project) => project.id === selectedProject.id ? { ...project, status } : project));
-      setMessage("Situação do projeto atualizada.");
+  async function updateContractStatus(status: ContractStatus) {
+    if (!supabase || !selectedProject || !selectedContract) return;
+    const { error: contractError } = await supabase
+      .from("contracts")
+      .update({ status })
+      .eq("id", selectedContract.id);
+    if (contractError) {
+      setMessage(`Não foi possível alterar a situação do contrato: ${contractError.message}`);
+      return;
     }
+
+    const projectStatus = projectStatusFromContract(status);
+    const { error: projectError } = await supabase
+      .from("projects")
+      .update({ status: projectStatus })
+      .eq("id", selectedProject.id);
+    if (projectError) {
+      setMessage(`O contrato foi atualizado, mas o projeto não pôde ser sincronizado: ${projectError.message}`);
+      return;
+    }
+
+    setMessage("Situação do contrato atualizada em contratos e projetos.");
+    await loadDashboard();
+  }
+
+  async function toggleContractArchive() {
+    if (!supabase || !selectedContract) return;
+    const archivedAt = selectedContract.archived_at ? null : new Date().toISOString();
+    const { error } = await supabase
+      .from("contracts")
+      .update({ archived_at: archivedAt })
+      .eq("id", selectedContract.id);
+    if (error) {
+      setMessage(`Não foi possível ${archivedAt ? "arquivar" : "desarquivar"} o contrato: ${error.message}`);
+      return;
+    }
+    setMessage(archivedAt ? "Contrato arquivado." : "Contrato restaurado.");
+    await loadDashboard();
+  }
+
+  async function deleteSelectedProject() {
+    if (!supabase || !selectedProject) return;
+    const confirmed = window.confirm(
+      `Excluir definitivamente “${selectedProject.name}” do hub? O contrato, as etapas, as ações e os custos serão removidos do Supabase. O arquivo continuará preservado no Google Drive.`,
+    );
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("projects").delete().eq("id", selectedProject.id);
+    if (error) {
+      setMessage(`Não foi possível excluir o projeto: ${error.message}`);
+      return;
+    }
+    setSelectedProjectId("");
+    setMessage("Contrato e projeto excluídos do hub. O arquivo foi preservado no Google Drive.");
+    await loadDashboard();
   }
 
   function openNewStage() {
@@ -663,6 +705,12 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
 
   async function removeStage() {
     if (!supabase || !stageEditor || stageEditor === "new") return;
+    if (allActions.some((action) => action.stage_id === stageEditor.id)) {
+      setMessage("Esta etapa possui ações. Remova essas ações antes de excluir a etapa.");
+      setStageEditor(null);
+      setPanelTab("actions");
+      return;
+    }
     if (!window.confirm(`Remover a etapa “${stageEditor.title}”?`)) return;
     const { error } = await supabase.from("project_stages").delete().eq("id", stageEditor.id);
     if (error) setMessage(`Não foi possível remover a etapa: ${error.message}`);
@@ -707,11 +755,16 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
   }
 
   function openActionEditor() {
+    if (!selectedStages.length) {
+      setPanelTab("stages");
+      setMessage("Crie ao menos uma etapa antes de adicionar uma ação.");
+      return;
+    }
     setActionDraft({
       description: "",
       assignee: "",
       due_date: todayIso(),
-      stage_id: "",
+      stage_id: selectedStages[0].id,
       priority: "medium",
       notes: "",
     });
@@ -721,10 +774,14 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
   async function saveAction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase || !selectedProject) return;
+    if (!actionDraft.stage_id) {
+      setMessage("Selecione a etapa à qual a ação pertence.");
+      return;
+    }
     setIsSaving(true);
     const { error } = await supabase.from("project_actions").insert({
       project_id: selectedProject.id,
-      stage_id: actionDraft.stage_id || null,
+      stage_id: actionDraft.stage_id,
       description: actionDraft.description.trim(),
       assignee: actionDraft.assignee.trim() || null,
       due_date: actionDraft.due_date,
@@ -818,22 +875,9 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
 
   return (
     <div className={`project-dashboard ${selectedProject ? "drawer-open" : ""}`}>
-      <header className="project-dashboard-topbar">
-        <a className="project-back-link" href="#/"><span aria-hidden="true">←</span> Voltar ao Hub</a>
-        <div className="project-topbar-title">
-          <span className="project-topbar-mark" aria-hidden="true"><UiIcon name="projects" /></span>
-          <h1>Visão de Projetos</h1>
-          <span>ver.balizado</span>
-        </div>
-        <div className="project-topbar-account">
-          <UserAvatar value={userEmail} />
-          <span>{userEmail}</span>
-          <button type="button" onClick={onSignOut}>Sair</button>
-        </div>
-      </header>
-
       <main className="project-dashboard-main">
         <section className="project-filter-bar" aria-label="Filtros e período">
+          <a className="project-compact-back" href="#/" aria-label="Voltar ao hub">←</a>
           <label className="project-search-field">
             <span className="sr-only">Buscar projeto ou cliente</span>
             <UiIcon name="search" />
@@ -990,31 +1034,27 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
                               </button>
                             );
                           })}
-                          {actions.filter((action) => action.status === "pending").map((action) => {
-                            const column = columns.findIndex((item) => action.due_date >= item.startIso && action.due_date <= item.endIso);
-                            if (column < 0) return null;
-                            const overdue = action.due_date < todayIso();
-                            return (
-                              <button
-                                key={action.id}
-                                type="button"
-                                className={`project-action-marker ${overdue ? "overdue" : ""}`}
-                                style={{ gridColumn: column + 1, gridRow: 3 }}
-                                title={`${overdue ? "Atrasada: " : "Ação: "}${action.description}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setSelectedProjectId(project.id);
-                                  setPanelTab("actions");
-                                }}
-                              >!</button>
-                            );
-                          })}
                         </div>
                       </div>
 
                       {expanded ? stages.map((stage) => {
-                        const span = getColumnSpan(stage.start_date, stage.end_date, columns);
                         const visualStatus = getStageVisualStatus(stage);
+                        const stageActions = actions.filter((action) => action.stage_id === stage.id);
+                        const visibleActions = stageActions
+                          .map((action) => ({
+                            action,
+                            column: columns.findIndex((item) => action.due_date >= item.startIso && action.due_date <= item.endIso),
+                          }))
+                          .filter((item) => item.column >= 0);
+                        const stackedActions = visibleActions.map((item, index) => ({
+                          ...item,
+                          row: visibleActions.slice(0, index).filter((previous) => previous.column === item.column).length + 1,
+                        }));
+                        const actionRows = Math.max(1, ...stackedActions.map((item) => item.row));
+                        const actionLineStyle = {
+                          ...timelineStyle,
+                          "--action-rows": actionRows,
+                        } as CSSProperties;
                         return (
                           <div className="project-stage-subrow" key={stage.id}>
                             <button type="button" onClick={() => { setSelectedProjectId(project.id); setPanelTab("stages"); openStage(stage); }}>
@@ -1022,18 +1062,24 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
                               <strong>{stage.title}</strong>
                               <StageStatusBadge status={visualStatus} />
                             </button>
-                            <div className="project-stage-subline" style={timelineStyle}>
+                            <div className="project-stage-subline" style={actionLineStyle}>
                               {todayPosition !== null ? <i className="project-today-line" style={{ left: `${todayPosition}%` }} /> : null}
-                              {span ? (
+                              {visibleActions.length === 0 ? <span className="project-no-action-inline">Nenhuma ação nesta etapa no período</span> : null}
+                              {stackedActions.map(({ action, column, row }) => {
+                                const overdue = action.status === "pending" && action.due_date < todayIso();
+                                return (
                                 <button
+                                  key={action.id}
                                   type="button"
-                                  className={`project-timeline-stage ${visualStatus}`}
-                                  style={{ gridColumn: `${span.first + 1} / ${span.last + 2}` }}
-                                  onClick={() => { setSelectedProjectId(project.id); setPanelTab("stages"); openStage(stage); }}
+                                  className={`project-expanded-action ${action.status} ${overdue ? "overdue" : ""} ${action.priority || "medium"}`}
+                                  style={{ gridColumn: column + 1, gridRow: row }}
+                                  title={`${action.description} | ${action.assignee || "Sem responsável"} | ${formatShortDate(action.due_date)}`}
+                                  onClick={() => { setSelectedProjectId(project.id); setPanelTab("actions"); }}
                                 >
-                                  <StageIcon name={stage.icon} /><span>{stage.title}</span>
+                                  <span>{action.description}</span><small>{formatShortDate(action.due_date)}</small>
                                 </button>
-                              ) : null}
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -1075,7 +1121,14 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
           <div className="project-drawer-body">
             {panelTab === "general" ? (
               <div className="project-drawer-section">
-                <label className="project-drawer-status-field"><span>Situação do projeto</span><select value={selectedProject.status} onChange={(event) => void updateProjectStatus(event.target.value as ProjectStatus)}>{Object.entries(projectStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                {selectedContract ? (
+                  <label className="project-drawer-status-field">
+                    <span>Situação do contrato</span>
+                    <select value={selectedContract.status} onChange={(event) => void updateContractStatus(event.target.value as ContractStatus)}>
+                      {Object.entries(contractStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                ) : null}
                 <dl className="project-detail-list">
                   <div><dt>Projeto</dt><dd>{selectedProject.name}</dd></div>
                   <div><dt>Cliente</dt><dd>{getClientName(selectedProject)}</dd></div>
@@ -1087,6 +1140,13 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
                   <div><dt>Valor contratado</dt><dd>{currencyFormatter.format(selectedRevenue)}</dd></div>
                 </dl>
                 {selectedContract?.drive_url ? <a className="project-drive-button" href={selectedContract.drive_url} target="_blank" rel="noreferrer"><UiIcon name="folder" /> Abrir contrato no Google Drive</a> : null}
+                {selectedContract ? (
+                  <div className="project-contract-actions">
+                    <button type="button" onClick={() => setEditingContract(selectedContract)}>Editar</button>
+                    <button type="button" onClick={() => void toggleContractArchive()}>{selectedContract.archived_at ? "Desarquivar" : "Arquivar"}</button>
+                    <button type="button" className="danger" onClick={() => void deleteSelectedProject()}>Excluir</button>
+                  </div>
+                ) : null}
                 <div className="project-drawer-progress"><span><strong>Progresso geral</strong><b>{selectedProgress}%</b></span><i><em style={{ width: `${selectedProgress}%` }} /></i></div>
               </div>
             ) : null}
@@ -1103,7 +1163,7 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
 
             {panelTab === "actions" ? (
               <div className="project-drawer-section">
-                <div className="project-drawer-section-heading"><strong>Próximas ações</strong><button type="button" className="primary-action" onClick={openActionEditor}>+ Adicionar ação</button></div>
+                <div className="project-drawer-section-heading"><strong>Próximas ações</strong><button type="button" className="primary-action" onClick={openActionEditor} disabled={selectedStages.length === 0} title={selectedStages.length === 0 ? "Crie uma etapa antes de adicionar uma ação" : undefined}>+ Adicionar ação</button></div>
                 {selectedActions.length === 0 ? <div className="project-drawer-empty"><strong>Nenhuma ação cadastrada</strong><span>Registre o próximo passo, o responsável e o prazo.</span></div> : selectedActions.map((action) => {
                   const overdue = action.status === "pending" && action.due_date < todayIso();
                   const stage = selectedStages.find((item) => item.id === action.stage_id);
@@ -1134,7 +1194,19 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
       ) : null}
 
       {actionEditorOpen ? (
-        <div className="form-modal-backdrop"><section className="form-modal project-small-modal" role="dialog" aria-modal="true" aria-labelledby="action-modal-title"><div className="form-modal-heading"><div><p className="section-eyebrow">Próximo passo</p><h2 id="action-modal-title">Adicionar ação</h2></div><button type="button" className="modal-close-button" onClick={() => setActionEditorOpen(false)} aria-label="Fechar">×</button></div><form onSubmit={saveAction}><div className="field-grid"><label className="field-wide"><span>O que precisa ser feito? *</span><textarea rows={4} required value={actionDraft.description} onChange={(event) => setActionDraft((current) => ({ ...current, description: event.target.value }))} /></label><label><span>Responsável</span><input value={actionDraft.assignee} onChange={(event) => setActionDraft((current) => ({ ...current, assignee: event.target.value }))} placeholder="Nome da pessoa" /></label><label><span>Prazo *</span><input type="date" required value={actionDraft.due_date} onChange={(event) => setActionDraft((current) => ({ ...current, due_date: event.target.value }))} /></label><label><span>Etapa relacionada</span><select value={actionDraft.stage_id} onChange={(event) => setActionDraft((current) => ({ ...current, stage_id: event.target.value }))}><option value="">Sem etapa específica</option>{selectedStages.map((stage) => <option key={stage.id} value={stage.id}>{stage.title}</option>)}</select></label><label><span>Prioridade</span><select value={actionDraft.priority} onChange={(event) => setActionDraft((current) => ({ ...current, priority: event.target.value as ProjectActionPriority }))}>{Object.entries(priorityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field-wide"><span>Observações</span><textarea rows={3} value={actionDraft.notes} onChange={(event) => setActionDraft((current) => ({ ...current, notes: event.target.value }))} /></label></div><div className="form-modal-actions"><button type="button" className="secondary-action" onClick={() => setActionEditorOpen(false)}>Cancelar</button><button type="submit" className="primary-action" disabled={isSaving}>{isSaving ? "Salvando..." : "Adicionar ação"}</button></div></form></section></div>
+        <div className="form-modal-backdrop"><section className="form-modal project-small-modal" role="dialog" aria-modal="true" aria-labelledby="action-modal-title"><div className="form-modal-heading"><div><p className="section-eyebrow">Próximo passo</p><h2 id="action-modal-title">Adicionar ação</h2></div><button type="button" className="modal-close-button" onClick={() => setActionEditorOpen(false)} aria-label="Fechar">×</button></div><form onSubmit={saveAction}><div className="field-grid"><label className="field-wide"><span>O que precisa ser feito? *</span><textarea rows={4} required value={actionDraft.description} onChange={(event) => setActionDraft((current) => ({ ...current, description: event.target.value }))} /></label><label><span>Responsável</span><input value={actionDraft.assignee} onChange={(event) => setActionDraft((current) => ({ ...current, assignee: event.target.value }))} placeholder="Nome da pessoa" /></label><label><span>Prazo *</span><input type="date" required value={actionDraft.due_date} onChange={(event) => setActionDraft((current) => ({ ...current, due_date: event.target.value }))} /></label><label><span>Etapa relacionada *</span><select required value={actionDraft.stage_id} onChange={(event) => setActionDraft((current) => ({ ...current, stage_id: event.target.value }))}><option value="" disabled>Selecione uma etapa</option>{selectedStages.map((stage) => <option key={stage.id} value={stage.id}>{stage.title}</option>)}</select></label><label><span>Prioridade</span><select value={actionDraft.priority} onChange={(event) => setActionDraft((current) => ({ ...current, priority: event.target.value as ProjectActionPriority }))}>{Object.entries(priorityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field-wide"><span>Observações</span><textarea rows={3} value={actionDraft.notes} onChange={(event) => setActionDraft((current) => ({ ...current, notes: event.target.value }))} /></label></div><div className="form-modal-actions"><button type="button" className="secondary-action" onClick={() => setActionEditorOpen(false)}>Cancelar</button><button type="submit" className="primary-action" disabled={isSaving}>{isSaving ? "Salvando..." : "Adicionar ação"}</button></div></form></section></div>
+      ) : null}
+
+      {editingContract && selectedProject ? (
+        <ContractEditDialog
+          contract={editingContract}
+          projectName={selectedProject.name}
+          onClose={() => setEditingContract(null)}
+          onSaved={async () => {
+            setMessage("Contrato e projeto atualizados.");
+            await loadDashboard();
+          }}
+        />
       ) : null}
 
       {costEditorOpen ? (
