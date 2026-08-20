@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { supabase } from "../lib/supabase";
+import { ensureActiveSession, isExpiredJwtError, supabase } from "../lib/supabase";
 import type {
   Client,
   Contract,
@@ -41,7 +41,7 @@ type ProjectWithRelations = Project & {
   contracts: ContractSummary | ContractSummary[] | null;
 };
 
-type ViewScale = "month" | "quarter" | "year";
+type ViewScale = "week" | "month" | "quarter" | "year";
 type PanelTab = "general" | "stages" | "actions" | "costs";
 type KpiFilter = "active" | "late" | "expiry" | "balance" | null;
 type StageVisualStatus = ProjectStageStatus | "late";
@@ -182,6 +182,15 @@ function getPeriod(anchor: string, scale: ViewScale) {
   const date = dateFromIso(anchor);
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
+  if (scale === "week") {
+    const weekStart = startOfWeek(date);
+    const weekEnd = addDays(weekStart, 6);
+    return {
+      start: weekStart,
+      end: weekEnd,
+      label: `${formatShortDate(weekStart)} a ${formatShortDate(weekEnd)} de ${weekEnd.getUTCFullYear()}`,
+    };
+  }
   if (scale === "year") {
     return {
       start: new Date(Date.UTC(year, 0, 1, 12)),
@@ -210,6 +219,24 @@ function getPeriod(anchor: string, scale: ViewScale) {
 }
 
 function getTimelineColumns(start: Date, end: Date, scale: ViewScale): TimelineColumn[] {
+  if (scale === "week") {
+    return Array.from({ length: 7 }, (_, index) => {
+      const columnStart = addDays(start, index);
+      const columnEnd = new Date(columnStart);
+      return {
+        start: columnStart,
+        end: columnEnd,
+        startIso: isoFromDate(columnStart),
+        endIso: isoFromDate(columnEnd),
+        label: new Intl.DateTimeFormat("pt-BR", {
+          weekday: "short",
+          day: "2-digit",
+          timeZone: "UTC",
+        }).format(columnStart),
+      };
+    });
+  }
+
   if (scale === "year") {
     return Array.from({ length: 12 }, (_, month) => {
       const columnStart = new Date(Date.UTC(start.getUTCFullYear(), month, 1, 12));
@@ -449,22 +476,44 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
   );
 
   const loadDashboard = useCallback(async () => {
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       setMessage("A conexão com o Supabase não está configurada.");
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
-    const [projectsResult, stagesResult, actionsResult, costsResult] = await Promise.all([
-      supabase
+    const activeSession = await ensureActiveSession();
+    if (!activeSession) {
+      setMessage("Sua sessão expirou. Entre novamente para acessar os projetos.");
+      setIsLoading(false);
+      return;
+    }
+
+    const runQueries = () => Promise.all([
+      client
         .from("projects")
         .select("*, clients(legal_name,trade_name), contracts(id,title,status,drive_url,total_value,effective_date,expires_at)")
         .order("created_at", { ascending: false }),
-      supabase.from("project_stages").select("*").order("position").order("start_date"),
-      supabase.from("project_actions").select("*").order("due_date"),
-      supabase.from("project_costs").select("*").order("incurred_on", { ascending: false }),
+      client.from("project_stages").select("*").order("position").order("start_date"),
+      client.from("project_actions").select("*").order("due_date"),
+      client.from("project_costs").select("*").order("incurred_on", { ascending: false }),
     ]);
-    const error = projectsResult.error || stagesResult.error || actionsResult.error || costsResult.error;
+
+    let [projectsResult, stagesResult, actionsResult, costsResult] = await runQueries();
+    let error = projectsResult.error || stagesResult.error || actionsResult.error || costsResult.error;
+
+    if (isExpiredJwtError(error)) {
+      const refreshedSession = await ensureActiveSession(true);
+      if (!refreshedSession) {
+        setMessage("Sua sessão expirou. Entre novamente para acessar os projetos.");
+        setIsLoading(false);
+        return;
+      }
+      [projectsResult, stagesResult, actionsResult, costsResult] = await runQueries();
+      error = projectsResult.error || stagesResult.error || actionsResult.error || costsResult.error;
+    }
+
     if (error) {
       setMessage(`Não foi possível carregar a visão de projetos: ${error.message}`);
       setIsLoading(false);
@@ -536,6 +585,11 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
 
   function movePeriod(direction: -1 | 1) {
     const date = dateFromIso(anchorDate);
+    if (viewScale === "week") {
+      date.setUTCDate(date.getUTCDate() + direction * 7);
+      setAnchorDate(isoFromDate(date));
+      return;
+    }
     const months = viewScale === "month" ? 1 : viewScale === "quarter" ? 3 : 12;
     date.setUTCDate(1);
     date.setUTCMonth(date.getUTCMonth() + direction * months);
@@ -798,9 +852,9 @@ export default function ProjectsPage({ userEmail, onSignOut }: ProjectsPageProps
             {responsibles.map((responsible) => <option key={responsible} value={responsible}>{responsible}</option>)}
           </select>
           <div className="project-period-switch" aria-label="Escala da visualização">
-            {(["month", "quarter", "year"] as ViewScale[]).map((scale) => (
+            {(["week", "month", "quarter", "year"] as ViewScale[]).map((scale) => (
               <button key={scale} type="button" className={viewScale === scale ? "selected" : ""} onClick={() => setViewScale(scale)}>
-                {scale === "month" ? "Mês" : scale === "quarter" ? "Trimestre" : "Ano"}
+                {scale === "week" ? "Semana" : scale === "month" ? "Mês" : scale === "quarter" ? "Trimestre" : "Ano"}
               </button>
             ))}
           </div>
