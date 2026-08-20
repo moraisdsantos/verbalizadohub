@@ -41,7 +41,8 @@ const modules: HubModule[] = [
     description:
       "Visualize cronogramas, etapas, vigências, responsáveis e próximos passos.",
     icon: "calendar",
-    status: "planned",
+    status: "available",
+    href: "#/projetos",
   },
   {
     code: "05",
