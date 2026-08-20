@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type Session } from "@supabase/supabase-js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
 const supabasePublishableKey =
@@ -26,3 +26,26 @@ export const supabase = isSupabaseConfigured
       },
     })
   : null;
+
+export function isExpiredJwtError(error: { message?: string; code?: string } | null) {
+  if (!error) return false;
+  const message = error.message?.toLocaleLowerCase("en-US") ?? "";
+  return message.includes("jwt expired") || message.includes("token has expired") || error.code === "PGRST301";
+}
+
+export async function ensureActiveSession(forceRefresh = false): Promise<Session | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session) return null;
+
+  const expiresAt = (data.session.expires_at ?? 0) * 1000;
+  const expiresSoon = expiresAt <= Date.now() + 60_000;
+  if (!forceRefresh && !expiresSoon) return data.session;
+
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (!refreshError && refreshed.session) return refreshed.session;
+
+  await supabase.auth.signOut({ scope: "local" });
+  return null;
+}
