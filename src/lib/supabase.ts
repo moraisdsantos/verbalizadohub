@@ -1,11 +1,51 @@
-[functions.drive-metadata]
-verify_jwt = false
+import { createClient, type Session } from "@supabase/supabase-js";
 
-[functions.audio-stream]
-verify_jwt = false
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
+const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? "";
 
-[functions.contract-ai]
-verify_jwt = false
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl && supabasePublishableKey,
+);
 
-[functions.finance-insights]
-verify_jwt = false
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabasePublishableKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+      global: {
+        fetch: (input, init) =>
+          fetch(input, {
+            ...init,
+            mode: "cors",
+            credentials: "omit",
+            cache: "no-store",
+          }),
+      },
+    })
+  : null;
+
+export function isExpiredJwtError(error: { message?: string; code?: string } | null) {
+  if (!error) return false;
+  const message = error.message?.toLocaleLowerCase("en-US") ?? "";
+  return message.includes("jwt expired") || message.includes("token has expired") || error.code === "PGRST301";
+}
+
+export async function ensureActiveSession(forceRefresh = false): Promise<Session | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session) return null;
+
+  const expiresAt = (data.session.expires_at ?? 0) * 1000;
+  const expiresSoon = expiresAt <= Date.now() + 60_000;
+  if (!forceRefresh && !expiresSoon) return data.session;
+
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (!refreshError && refreshed.session) return refreshed.session;
+
+  await supabase.auth.signOut({ scope: "local" });
+  return null;
+}
