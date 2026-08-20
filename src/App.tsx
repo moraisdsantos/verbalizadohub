@@ -8,21 +8,23 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import AudioPlayer from "./components/AudioPlayer";
 import ClientsPage from "./components/ClientsPage";
 import ContractsPage from "./components/ContractsPage";
+import FinancialPage from "./components/FinancialPage";
 import HomePage from "./components/HomePage";
 import HubLogin, { HubAccessLoading } from "./components/HubLogin";
 import ProjectsPage from "./components/ProjectsPage";
 import QrDialog from "./components/QrDialog";
 import { extractDriveFileId } from "./lib/drive";
-import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import { ensureActiveSession, isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { AudioWork, DriveMetadata } from "./types";
 
-type HubRoute = "home" | "catalogo" | "clientes" | "contratos" | "projetos";
+type HubRoute = "home" | "catalogo" | "clientes" | "contratos" | "projetos" | "financeiro";
 
 function getHubRoute(): HubRoute {
   if (window.location.hash === "#/catalogo") return "catalogo";
   if (window.location.hash === "#/clientes") return "clientes";
   if (window.location.hash === "#/contratos") return "contratos";
   if (window.location.hash === "#/projetos") return "projetos";
+  if (window.location.hash === "#/financeiro") return "financeiro";
   return "home";
 }
 
@@ -90,6 +92,8 @@ export default function App() {
       document.title = "Contratos | ver.balizado";
     } else if (route === "projetos") {
       document.title = "Visão de projetos | ver.balizado";
+    } else if (route === "financeiro") {
+      document.title = "Visão financeira | ver.balizado";
     } else {
       document.title = "Hub operacional | ver.balizado";
     }
@@ -130,9 +134,9 @@ export default function App() {
     }
 
     let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
+    void ensureActiveSession().then((activeSession) => {
       if (!active) return;
-      setSession(data.session);
+      setSession(activeSession);
       setAuthReady(true);
     });
 
@@ -234,11 +238,8 @@ export default function App() {
     if (!supabase || !session) return;
     setPageMessage("");
 
-    const {
-      data: { session: activeSession },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-    if (sessionError || !activeSession) {
+    const activeSession = await ensureActiveSession();
+    if (!activeSession) {
       setSession(null);
       setPageMessage("Sua sessão expirou. Entre novamente antes de adicionar o áudio.");
       return;
@@ -484,6 +485,33 @@ export default function App() {
 
     return (
       <ProjectsPage
+        userEmail={session.user.email ?? "Usuário autorizado"}
+        onSignOut={signOut}
+      />
+    );
+  }
+
+  if (route === "financeiro") {
+    if (!authReady) {
+      return <HubAccessLoading />;
+    }
+
+    if (!session) {
+      return (
+        <HubLogin
+          email={email}
+          password={password}
+          message={loginMessage}
+          isSubmitting={isSigningIn}
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onSubmit={signInWithPassword}
+        />
+      );
+    }
+
+    return (
+      <FinancialPage
         userEmail={session.user.email ?? "Usuário autorizado"}
         onSignOut={signOut}
       />
