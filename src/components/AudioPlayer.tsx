@@ -11,10 +11,16 @@ function formatTime(value: number) {
   return `${minutes}:${seconds}`;
 }
 
-export default function AudioPlayer({ work }: { work: AudioWork }) {
+export default function AudioPlayer({
+  work,
+  autoPlay = false,
+}: {
+  work: AudioWork;
+  autoPlay?: boolean;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const autoplayAttemptedRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -25,6 +31,29 @@ export default function AudioPlayer({ work }: { work: AudioWork }) {
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = speed;
   }, [speed]);
+
+  useEffect(() => {
+    autoplayAttemptedRef.current = false;
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setMessage("");
+  }, [work.id]);
+
+  async function attemptAutoplay() {
+    const audio = audioRef.current;
+    if (!autoPlay || !audio || autoplayAttemptedRef.current) return;
+    autoplayAttemptedRef.current = true;
+
+    try {
+      await audio.play();
+      setMessage("");
+    } catch {
+      setMessage(
+        "O navegador bloqueou a reprodução automática. Toque em reproduzir para ouvir a audiodescrição.",
+      );
+    }
+  }
 
   async function togglePlayback() {
     const audio = audioRef.current;
@@ -51,10 +80,12 @@ export default function AudioPlayer({ work }: { work: AudioWork }) {
       <audio
         ref={audioRef}
         src={audioStreamUrl(work.drive_file_id)}
+        autoPlay={autoPlay}
         crossOrigin="anonymous"
-        preload="metadata"
+        preload={autoPlay ? "auto" : "metadata"}
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
         onDurationChange={(event) => setDuration(event.currentTarget.duration)}
+        onCanPlay={() => void attemptAutoplay()}
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
@@ -68,17 +99,6 @@ export default function AudioPlayer({ work }: { work: AudioWork }) {
 
       <header className="player-header">
         <h1 id={`work-title-${work.id}`}>{work.title}</h1>
-        <button
-          className="favorite-button"
-          type="button"
-          aria-label={
-            isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"
-          }
-          aria-pressed={isFavorite}
-          onClick={() => setIsFavorite((value) => !value)}
-        >
-          <span aria-hidden="true">{isFavorite ? "♥" : "♡"}</span>
-        </button>
       </header>
 
       <div
