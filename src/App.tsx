@@ -18,6 +18,7 @@ import { ensureActiveSession, isSupabaseConfigured, supabase } from "./lib/supab
 import type { AudioWork, DriveMetadata } from "./types";
 
 type HubRoute = "home" | "catalogo" | "clientes" | "contratos" | "projetos" | "financeiro";
+const logoUrl = `${import.meta.env.BASE_URL}verbalizado-horizontal.png`;
 
 function getHubRoute(): HubRoute {
   if (window.location.hash === "#/catalogo") return "catalogo";
@@ -119,9 +120,9 @@ export default function App() {
     setWorks(loadedWorks);
     setSelectedWork((current) => {
       if (current) {
-        return loadedWorks.find((work) => work.id === current.id) ?? loadedWorks[0] ?? null;
+        return loadedWorks.find((work) => work.id === current.id) ?? null;
       }
-      return loadedWorks[0] ?? null;
+      return null;
     });
     setIsLoading(false);
   }, []);
@@ -313,19 +314,17 @@ export default function App() {
     await loadWorks();
   }
 
-  async function togglePublished(work: AudioWork) {
+  async function publishWork(work: AudioWork) {
     if (!supabase || !session) return;
     const { error } = await supabase
       .from("audio_works")
-      .update({ is_published: !work.is_published })
+      .update({ is_published: true })
       .eq("id", work.id);
 
     setPageMessage(
       error
         ? `Não foi possível alterar a publicação: ${error.message}`
-        : work.is_published
-          ? "A obra foi ocultada do acesso público."
-          : "A obra foi publicada.",
+        : "A obra foi publicada.",
     );
     if (!error) await loadWorks();
   }
@@ -392,21 +391,28 @@ export default function App() {
 
   if (sharedWorkId) {
     return (
-      <div className="shared-page">
-        {isLoading ? <p>Carregando audiodescrição…</p> : null}
-        {!isLoading && sharedWork ? (
-          <AudioPlayer work={sharedWork} />
-        ) : null}
-        {!isLoading && !sharedWork ? (
-          <section className="not-found-card" role="alert">
-            <span className="ad-mark" aria-hidden="true">
-              AD
-            </span>
-            <h1>Audiodescrição indisponível</h1>
-            <p>{pageMessage}</p>
-          </section>
-        ) : null}
-      </div>
+      <main className="shared-page">
+        <div className="shared-player-layout">
+          <img
+            className="shared-player-logo"
+            src={logoUrl}
+            alt="ver.balizado — acessibilidade comunicacional"
+          />
+          {isLoading ? <p>Carregando audiodescrição…</p> : null}
+          {!isLoading && sharedWork ? (
+            <AudioPlayer work={sharedWork} autoPlay />
+          ) : null}
+          {!isLoading && !sharedWork ? (
+            <section className="not-found-card" role="alert">
+              <span className="ad-mark" aria-hidden="true">
+                AD
+              </span>
+              <h1>Audiodescrição indisponível</h1>
+              <p>{pageMessage}</p>
+            </section>
+          ) : null}
+        </div>
+      </main>
     );
   }
 
@@ -646,9 +652,11 @@ export default function App() {
                   ) : null}
                   {session ? (
                     <>
-                      <button type="button" onClick={() => togglePublished(work)}>
-                        {work.is_published ? "Ocultar" : "Publicar"}
-                      </button>
+                      {!work.is_published ? (
+                        <button type="button" onClick={() => publishWork(work)}>
+                          Publicar
+                        </button>
+                      ) : null}
                       <button
                         className="remove-button"
                         type="button"
