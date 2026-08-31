@@ -522,15 +522,18 @@ export default function App() {
     <div className="app-shell">
       <header className="catalog-heading">
         <div>
-          <a className="back-to-hub" href="#/">
-            <span aria-hidden="true">←</span>
-            Voltar ao hub
-          </a>
+          {session ? (
+            <a className="back-to-hub" href="#/">
+              <span aria-hidden="true">←</span>
+              Voltar ao hub
+            </a>
+          ) : null}
           <p className="brand-kicker">ver.balizado</p>
           <h1>Catálogo de audiodescrições</h1>
           <p>
-            Arquivos centralizados no Supabase, com player e QR Code individual
-            para cada obra publicada.
+            {session
+              ? "Arquivos centralizados no Supabase, com player e QR Code individual para cada obra publicada."
+              : "Ouça as audiodescrições disponíveis e selecione uma obra para reproduzir."}
           </p>
         </div>
         {session ? (
@@ -543,51 +546,7 @@ export default function App() {
         ) : null}
       </header>
 
-      {!session ? (
-        <section className="login-panel" aria-labelledby="login-title">
-          <div>
-            <p className="section-eyebrow">Acesso da equipe</p>
-            <h2 id="login-title">Gerenciar catálogo</h2>
-            <p>
-              Entre com o e-mail e a senha cadastrados no Supabase Auth.
-            </p>
-          </div>
-          <form className="login-form" onSubmit={signInWithPassword}>
-            <div className="login-fields">
-              <div>
-                <label htmlFor="email">E-mail</label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="voce@verbalizado.com.br"
-                />
-              </div>
-              <div>
-                <label htmlFor="password">Senha</label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Sua senha"
-                />
-              </div>
-            </div>
-            <button type="submit" disabled={isSigningIn}>
-              {isSigningIn ? "Entrando…" : "Entrar"}
-            </button>
-            <p className="form-message" role="status" aria-live="polite">
-              {loginMessage}
-            </p>
-          </form>
-        </section>
-      ) : (
+      {session ? (
         <section className="manager-panel" aria-labelledby="add-title">
           <div>
             <p className="section-eyebrow">Área administrativa</p>
@@ -622,7 +581,7 @@ export default function App() {
             </label>
           </form>
         </section>
-      )}
+      ) : null}
 
       <p className="page-message" role="status" aria-live="polite">
         {pageMessage}
