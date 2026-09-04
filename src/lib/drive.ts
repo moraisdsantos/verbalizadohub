@@ -22,6 +22,16 @@ export function audioStreamUrl(fileId: string) {
   return functionUrl.toString();
 }
 
+export function audioSourceUrls(fileId: string) {
+  const directUrl = googleDriveAudioUrl(fileId);
+  const primaryUrl = audioStreamUrl(fileId);
+  return primaryUrl === directUrl ? [directUrl] : [primaryUrl, directUrl];
+}
+
+export function googleDriveViewUrl(fileId: string) {
+  return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+}
+
 export function individualWorkUrl(workId: string) {
   const url = new URL(window.location.href);
   url.search = "";
