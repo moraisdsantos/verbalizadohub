@@ -137,8 +137,7 @@ export default function QrDialog({
         <p className="section-eyebrow">Compartilhar obra</p>
         <h2 id="share-title">{work.title}</h2>
         <p className="dialog-description">
-          O cartão abre somente a audiodescrição desta obra e tenta iniciar a
-          reprodução automaticamente.
+          
         </p>
 
         <div className="qr-frame" aria-live="polite">
