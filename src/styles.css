@@ -193,6 +193,10 @@ code { padding: 2px 5px; border-radius: 4px; background: rgba(210, 172, 247, .16
 .work-info { min-width: 0; }
 .work-info h3 { margin: 0; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
 .work-info p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.work-admin-metadata { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0 0; }
+.work-admin-metadata div { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px; align-items: baseline; }
+.work-admin-metadata dt { color: var(--purple-300); font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.work-admin-metadata dd { margin: 0; color: #fff; font-size: 12px; overflow-wrap: anywhere; }
 .work-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .work-actions button { min-height: 35px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 999px; background: rgba(43, 7, 77, .38); color: var(--ink); font-size: 12px; font-weight: 700; }
 .work-actions button:hover, .work-actions button:focus-visible { border-color: var(--purple-200); background: var(--purple-200); color: var(--purple-950); }
@@ -222,6 +226,11 @@ code { padding: 2px 5px; border-radius: 4px; background: rgba(210, 172, 247, .16
 .replace-audio-dialog label { color: var(--purple-950); }
 .replacement-note { margin: 2px 0 0; color: #5f4276; font-size: 12px; line-height: 1.45; }
 .replace-audio-dialog .copy-message { margin-bottom: 0; }
+.work-metadata-dialog { width: min(100%, 590px); }
+.work-metadata-dialog form { display: grid; gap: 9px; }
+.work-metadata-dialog label { margin-top: 3px; color: var(--purple-950); }
+.work-metadata-dialog input[readonly] { background: rgba(255, 255, 255, .58); color: #5f4276; cursor: default; }
+.work-metadata-dialog .copy-message { margin-bottom: 0; }
 
 .shared-page, .setup-screen { display: grid; min-height: 100svh; place-items: center; padding: 24px; }
 .shared-player-layout { display: grid; width: min(100%, 680px); justify-items: center; gap: 24px; }
