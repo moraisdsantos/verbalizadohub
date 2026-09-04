@@ -4,6 +4,8 @@ import {
   FunctionsRelayError,
 } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import ContractEditDialog from "./ContractEditDialog";
+import { contractStatusLabels } from "../lib/contracts";
 import { supabase } from "../lib/supabase";
 import type {
   Client,
@@ -62,15 +64,6 @@ const sourceLabels: Record<ContractSource, string> = {
   pdf: "PDF interpretado",
   proposal: "Gerado da proposta",
   manual: "Cadastro manual",
-};
-
-const statusLabels: Record<ContractStatus, string> = {
-  draft: "Rascunho",
-  review: "Em revisão",
-  signed: "Assinado",
-  active: "Vigente",
-  expired: "Encerrado",
-  cancelled: "Cancelado",
 };
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -204,6 +197,8 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
   const [isLoading, setIsLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<"analyze" | "save" | null>(null);
   const [search, setSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingContract, setEditingContract] = useState<ContractWithRelations | null>(null);
 
   const selectedClient = useMemo(
     () => clients.find((client) => client.id === draft.client_id) ?? null,
@@ -212,8 +207,10 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
 
   const filteredContracts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
-    if (!term) return contracts;
-    return contracts.filter((contract) =>
+    return contracts.filter((contract) => {
+      if (!showArchived && contract.archived_at) return false;
+      if (!term) return true;
+      return (
       [
         contract.title,
         contract.contract_number,
@@ -222,9 +219,10 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
         contract.clients?.legal_name,
       ]
         .filter(Boolean)
-        .some((value) => value!.toLocaleLowerCase("pt-BR").includes(term)),
-    );
-  }, [contracts, search]);
+        .some((value) => value!.toLocaleLowerCase("pt-BR").includes(term))
+      );
+    });
+  }, [contracts, search, showArchived]);
 
   const loadData = useCallback(async () => {
     if (!supabase) return;
@@ -613,6 +611,38 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
     }
   }
 
+  async function toggleArchive(contract: ContractWithRelations) {
+    if (!supabase) return;
+    const archivedAt = contract.archived_at ? null : new Date().toISOString();
+    const { error } = await supabase
+      .from("contracts")
+      .update({ archived_at: archivedAt })
+      .eq("id", contract.id);
+    if (error) {
+      setMessage(`Não foi possível ${archivedAt ? "arquivar" : "desarquivar"} o contrato: ${error.message}`);
+      return;
+    }
+    setMessage(archivedAt ? "Contrato arquivado." : "Contrato restaurado.");
+    await loadData();
+  }
+
+  async function deleteContract(contract: ContractWithRelations) {
+    if (!supabase) return;
+    const projectName = contract.projects?.name || contract.title;
+    const confirmed = window.confirm(
+      `Remover definitivamente o contrato “${contract.title}”? O projeto “${projectName}”, suas etapas, ações e custos também serão removidos do Supabase. O arquivo continuará preservado no Google Drive.`,
+    );
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("projects").delete().eq("id", contract.project_id);
+    if (error) {
+      setMessage(`Não foi possível remover o contrato: ${error.message}`);
+      return;
+    }
+    setMessage("Contrato e projeto removidos do hub. O arquivo foi preservado no Google Drive.");
+    await loadData();
+  }
+
   return (
     <div className="contracts-page">
       <header className="module-page-header contracts-header">
@@ -673,15 +703,21 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
             <p className="section-eyebrow">Base contratual</p>
             <h2 id="contracts-list-title">Contratos e projetos criados</h2>
           </div>
-          <label className="contract-search">
-            <span>Buscar</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Contrato, cliente ou projeto"
-            />
-          </label>
+          <div className="contract-list-controls">
+            <label className="contract-search">
+              <span>Buscar</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Contrato, cliente ou projeto"
+              />
+            </label>
+            <label className="contract-archive-filter">
+              <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
+              <span>Mostrar arquivados</span>
+            </label>
+          </div>
         </div>
 
         {isLoading ? <p className="contracts-placeholder">Carregando contratos…</p> : null}
@@ -709,20 +745,24 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
               </thead>
               <tbody>
                 {filteredContracts.map((contract) => (
-                  <tr key={contract.id}>
+                  <tr key={contract.id} className={contract.archived_at ? "is-archived" : ""}>
                     <td>
                       <strong>{contract.title}</strong>
                       <span>{contract.contract_number || sourceLabels[contract.source]}</span>
+                      {contract.archived_at ? <em className="contract-archived-label">Arquivado</em> : null}
                     </td>
                     <td>{contract.clients?.trade_name || contract.clients?.legal_name || "—"}</td>
                     <td><span className="project-pill">{contract.projects?.name || "—"}</span></td>
                     <td>{formatDate(contract.effective_date)}<br />até {formatDate(contract.expires_at)}</td>
                     <td>{contract.total_value === null ? "—" : currencyFormatter.format(contract.total_value)}</td>
-                    <td><span className={`contract-status ${contract.status}`}>{statusLabels[contract.status]}</span></td>
+                    <td><span className={`contract-status ${contract.status}`}>{contractStatusLabels[contract.status]}</span></td>
                     <td>
-                      <a href={contract.drive_url} target="_blank" rel="noreferrer">
-                        Abrir no Drive ↗
-                      </a>
+                      <div className="contract-row-actions">
+                        <a href={contract.drive_url} target="_blank" rel="noreferrer">Drive ↗</a>
+                        <button type="button" onClick={() => setEditingContract(contract)}>Editar</button>
+                        <button type="button" onClick={() => void toggleArchive(contract)}>{contract.archived_at ? "Desarquivar" : "Arquivar"}</button>
+                        <button type="button" className="danger" onClick={() => void deleteContract(contract)}>Remover</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -800,7 +840,7 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
                   <label>
                     <span>Status do contrato</span>
                     <select value={draft.status} onChange={(event) => updateDraft("status", event.target.value as ContractStatus)}>
-                      {Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      {Object.entries(contractStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                   </label>
                 </div>
@@ -874,6 +914,18 @@ export default function ContractsPage({ userEmail, onSignOut }: ContractsPagePro
             </form>
           </section>
         </div>
+      ) : null}
+
+      {editingContract ? (
+        <ContractEditDialog
+          contract={editingContract}
+          projectName={editingContract.projects?.name || ""}
+          onClose={() => setEditingContract(null)}
+          onSaved={async () => {
+            setMessage("Contrato e projeto atualizados.");
+            await loadData();
+          }}
+        />
       ) : null}
     </div>
   );
