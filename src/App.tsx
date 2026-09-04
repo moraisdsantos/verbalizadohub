@@ -25,6 +25,7 @@ import type {
 } from "./types";
 
 type HubRoute = "home" | "catalogo" | "clientes" | "contratos" | "projetos" | "financeiro";
+type CatalogPublicationFilter = "all" | "published" | "unpublished";
 const logoUrl = `${import.meta.env.BASE_URL}verbalizado-horizontal.png`;
 const catalogRequestTimeout = 8_000;
 
@@ -141,7 +142,110 @@ export default function App() {
   const [metadataClientName, setMetadataClientName] = useState("");
   const [metadataProjectName, setMetadataProjectName] = useState("");
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogClientFilter, setCatalogClientFilter] = useState("");
+  const [catalogProjectFilter, setCatalogProjectFilter] = useState("");
+  const [catalogPublicationFilter, setCatalogPublicationFilter] =
+    useState<CatalogPublicationFilter>("all");
+  const [catalogDateFrom, setCatalogDateFrom] = useState("");
+  const [catalogDateTo, setCatalogDateTo] = useState("");
   const [route, setRoute] = useState<HubRoute>(getHubRoute);
+
+  const availableCatalogProjects = useMemo(
+    () =>
+      catalogClientFilter
+        ? catalogProjects.filter(
+            (project) => project.client_id === catalogClientFilter,
+          )
+        : catalogProjects,
+    [catalogClientFilter, catalogProjects],
+  );
+
+  const filteredWorks = useMemo(() => {
+    if (!session) return works;
+
+    const normalizedSearch = normalizeCatalogName(catalogSearch);
+
+    return works.filter((work) => {
+      const metadata = workMetadata[work.id];
+      const project = catalogProjects.find(
+        (item) => item.id === metadata?.project_id,
+      );
+      const client = catalogClients.find(
+        (item) => item.id === (metadata?.client_id ?? project?.client_id),
+      );
+      const clientId = metadata?.client_id ?? project?.client_id ?? "";
+      const registeredDate = work.created_at.slice(0, 10);
+      const searchableText = normalizeCatalogName(
+        [
+          work.title,
+          client?.legal_name,
+          client?.trade_name,
+          project?.name,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+
+      if (normalizedSearch && !searchableText.includes(normalizedSearch)) {
+        return false;
+      }
+      if (catalogClientFilter && clientId !== catalogClientFilter) return false;
+      if (
+        catalogProjectFilter &&
+        metadata?.project_id !== catalogProjectFilter
+      ) {
+        return false;
+      }
+      if (
+        catalogPublicationFilter === "published" &&
+        !work.is_published
+      ) {
+        return false;
+      }
+      if (
+        catalogPublicationFilter === "unpublished" &&
+        work.is_published
+      ) {
+        return false;
+      }
+      if (catalogDateFrom && registeredDate < catalogDateFrom) return false;
+      if (catalogDateTo && registeredDate > catalogDateTo) return false;
+
+      return true;
+    });
+  }, [
+    catalogClientFilter,
+    catalogClients,
+    catalogDateFrom,
+    catalogDateTo,
+    catalogProjectFilter,
+    catalogProjects,
+    catalogPublicationFilter,
+    catalogSearch,
+    session,
+    workMetadata,
+    works,
+  ]);
+
+  const visibleWorks = session ? filteredWorks : works;
+  const hasActiveCatalogFilters = Boolean(
+    catalogSearch ||
+      catalogClientFilter ||
+      catalogProjectFilter ||
+      catalogPublicationFilter !== "all" ||
+      catalogDateFrom ||
+      catalogDateTo,
+  );
+
+  function clearCatalogFilters() {
+    setCatalogSearch("");
+    setCatalogClientFilter("");
+    setCatalogProjectFilter("");
+    setCatalogPublicationFilter("all");
+    setCatalogDateFrom("");
+    setCatalogDateTo("");
+  }
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -959,6 +1063,120 @@ export default function App() {
         {pageMessage}
       </p>
 
+      {session ? (
+        <section className="catalog-filters" aria-labelledby="catalog-filters-title">
+          <div className="catalog-filters-heading">
+            <div>
+              <p className="section-eyebrow">Consulta interna</p>
+              <h2 id="catalog-filters-title">Filtrar catálogo</h2>
+            </div>
+            <span aria-live="polite">
+              {visibleWorks.length} de {works.length} obras
+            </span>
+          </div>
+
+          <div className="catalog-filter-grid">
+            <label className="catalog-search-filter">
+              <span>Buscar</span>
+              <input
+                type="search"
+                value={catalogSearch}
+                onChange={(event) => setCatalogSearch(event.target.value)}
+                placeholder="Título, cliente ou projeto"
+              />
+            </label>
+
+            <label>
+              <span>Cliente</span>
+              <select
+                value={catalogClientFilter}
+                onChange={(event) => {
+                  const nextClientId = event.target.value;
+                  setCatalogClientFilter(nextClientId);
+                  if (
+                    catalogProjectFilter &&
+                    !catalogProjects.some(
+                      (project) =>
+                        project.id === catalogProjectFilter &&
+                        (!nextClientId || project.client_id === nextClientId),
+                    )
+                  ) {
+                    setCatalogProjectFilter("");
+                  }
+                }}
+              >
+                <option value="">Todos os clientes</option>
+                {catalogClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {clientCatalogName(client)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Projeto</span>
+              <select
+                value={catalogProjectFilter}
+                onChange={(event) => setCatalogProjectFilter(event.target.value)}
+              >
+                <option value="">Todos os projetos</option>
+                {availableCatalogProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Publicação</span>
+              <select
+                value={catalogPublicationFilter}
+                onChange={(event) =>
+                  setCatalogPublicationFilter(
+                    event.target.value as CatalogPublicationFilter,
+                  )
+                }
+              >
+                <option value="all">Todas</option>
+                <option value="published">Publicadas</option>
+                <option value="unpublished">Não publicadas</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Cadastradas de</span>
+              <input
+                type="date"
+                value={catalogDateFrom}
+                max={catalogDateTo || undefined}
+                onChange={(event) => setCatalogDateFrom(event.target.value)}
+              />
+            </label>
+
+            <label>
+              <span>Até</span>
+              <input
+                type="date"
+                value={catalogDateTo}
+                min={catalogDateFrom || undefined}
+                onChange={(event) => setCatalogDateTo(event.target.value)}
+              />
+            </label>
+
+            <button
+              className="clear-catalog-filters"
+              type="button"
+              disabled={!hasActiveCatalogFilters}
+              onClick={clearCatalogFilters}
+            >
+              Limpar filtros
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {selectedWork ? (
         <section className="selected-player" aria-label="Obra selecionada">
           <p className="section-eyebrow">Obra selecionada</p>
@@ -975,28 +1193,43 @@ export default function App() {
             <h2 id="works-title">Audiodescrições</h2>
           </div>
           <span className="work-count">
-            {works.length} {works.length === 1 ? "obra" : "obras"}
+            {session && hasActiveCatalogFilters
+              ? `${visibleWorks.length} de ${works.length}`
+              : visibleWorks.length}{" "}
+            {visibleWorks.length === 1 ? "obra" : "obras"}
           </span>
         </div>
 
         {isLoading ? <p className="loading-list">Carregando catálogo…</p> : null}
-        {!isLoading && works.length === 0 ? (
+        {!isLoading && visibleWorks.length === 0 ? (
           <div className="empty-state">
             <span className="ad-mark" aria-hidden="true">
               AD
             </span>
-            <h3>Nenhuma audiodescrição disponível</h3>
-            <p>
-              {session
-                ? "Adicione o primeiro arquivo do Google Drive acima."
-                : "As obras publicadas aparecerão aqui."}
-            </p>
+            {session && works.length > 0 ? (
+              <>
+                <h3>Nenhuma obra encontrada</h3>
+                <p>Ajuste a busca ou limpe os filtros para ver outras obras.</p>
+                <button type="button" onClick={clearCatalogFilters}>
+                  Limpar filtros
+                </button>
+              </>
+            ) : (
+              <>
+                <h3>Nenhuma audiodescrição disponível</h3>
+                <p>
+                  {session
+                    ? "Adicione o primeiro arquivo do Google Drive acima."
+                    : "As obras publicadas aparecerão aqui."}
+                </p>
+              </>
+            )}
           </div>
         ) : null}
 
-        {!isLoading && works.length ? (
+        {!isLoading && visibleWorks.length ? (
           <ul className="works-list">
-            {works.map((work, index) => {
+            {visibleWorks.map((work, index) => {
               const metadata = workMetadata[work.id];
               const project = catalogProjects.find(
                 (item) => item.id === metadata?.project_id,
