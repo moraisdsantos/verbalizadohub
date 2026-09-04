@@ -1,5 +1,5 @@
-import { CSSProperties, useEffect, useRef, useState } from "react";
-import { audioStreamUrl } from "../lib/drive";
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { audioSourceUrls, googleDriveViewUrl } from "../lib/drive";
 import type { AudioWork } from "../types";
 
 function formatTime(value: number) {
@@ -25,6 +25,13 @@ export default function AudioPlayer({
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [message, setMessage] = useState("");
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [streamUnavailable, setStreamUnavailable] = useState(false);
+  const sourceUrls = useMemo(
+    () => audioSourceUrls(work.drive_file_id),
+    [work.drive_file_id],
+  );
+  const sourceUrl = streamUnavailable ? undefined : sourceUrls[sourceIndex];
   const progress = duration ? (currentTime / duration) * 100 : 0;
   const contactUrl = import.meta.env.VITE_CONTACT_URL?.trim() ?? "";
 
@@ -38,7 +45,37 @@ export default function AudioPlayer({
     setCurrentTime(0);
     setDuration(0);
     setMessage("");
-  }, [work.id]);
+    setSourceIndex(0);
+    setStreamUnavailable(false);
+  }, [work.drive_file_id, work.id]);
+
+  function handleCanPlay() {
+    if (sourceIndex > 0) {
+      setMessage(
+        "Reprodução em modo de contingência pelo link direto do Google Drive.",
+      );
+    }
+    void attemptAutoplay();
+  }
+
+  function handleAudioError() {
+    setIsPlaying(false);
+    if (sourceIndex + 1 < sourceUrls.length) {
+      autoplayAttemptedRef.current = false;
+      setCurrentTime(0);
+      setDuration(0);
+      setSourceIndex((current) => current + 1);
+      setMessage(
+        "O servidor principal está indisponível. Tentando o áudio diretamente pelo Google Drive…",
+      );
+      return;
+    }
+
+    setStreamUnavailable(true);
+    setMessage(
+      "Não foi possível reproduzir no player. Abra o arquivo diretamente no Google Drive.",
+    );
+  }
 
   async function attemptAutoplay() {
     const audio = audioRef.current;
@@ -64,9 +101,7 @@ export default function AudioPlayer({
       else audio.pause();
       setMessage("");
     } catch {
-      setMessage(
-        "Não foi possível carregar o áudio. Confira se a função audio-stream foi publicada no Supabase.",
-      );
+      handleAudioError();
     }
   }
 
@@ -79,22 +114,17 @@ export default function AudioPlayer({
     <section className="player-card" aria-labelledby={`work-title-${work.id}`}>
       <audio
         ref={audioRef}
-        src={audioStreamUrl(work.drive_file_id)}
+        src={sourceUrl}
         autoPlay={autoPlay}
-        crossOrigin="anonymous"
         preload={autoPlay ? "auto" : "metadata"}
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
         onDurationChange={(event) => setDuration(event.currentTarget.duration)}
-        onCanPlay={() => void attemptAutoplay()}
+        onCanPlay={handleCanPlay}
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
-        onError={() =>
-          setMessage(
-            "Não foi possível carregar o áudio. Confira se a função audio-stream foi publicada no Supabase.",
-          )
-        }
+        onError={handleAudioError}
       />
 
       <header className="player-header">
@@ -118,8 +148,13 @@ export default function AudioPlayer({
           className={`play-button ${isPlaying ? "playing" : ""}`}
           type="button"
           onClick={togglePlayback}
+          disabled={streamUnavailable}
           aria-label={
-            isPlaying ? "Pausar audiodescrição" : "Reproduzir audiodescrição"
+            streamUnavailable
+              ? "Áudio indisponível no player"
+              : isPlaying
+                ? "Pausar audiodescrição"
+                : "Reproduzir audiodescrição"
           }
         >
           <span className="play-icon" aria-hidden="true" />
@@ -188,6 +223,17 @@ export default function AudioPlayer({
             Fale com a ver.balizado
           </button>
         )}
+
+        {streamUnavailable ? (
+          <a
+            className="drive-fallback-link"
+            href={googleDriveViewUrl(work.drive_file_id)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Abrir áudio no Google Drive ↗
+          </a>
+        ) : null}
 
       </div>
 
