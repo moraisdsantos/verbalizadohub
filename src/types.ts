@@ -10,6 +10,15 @@ export type AudioWork = {
   updated_at: string;
 };
 
+export type AudioWorkMetadata = {
+  work_id: string;
+  client_id: string | null;
+  project_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DriveMetadata = {
   fileId: string;
   title: string;
