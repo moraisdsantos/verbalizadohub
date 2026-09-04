@@ -9,11 +9,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "backup:audio": "node scripts/update-audio-backup.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.3",
-    "qrcode": "^1.5.4",
+    "@supabase/supabase-js": "2.112.3",
+    "qrcode": "1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
