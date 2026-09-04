@@ -16,7 +16,13 @@ import QrDialog from "./components/QrDialog";
 import { loadAudioCatalogBackup } from "./lib/audioBackup";
 import { extractDriveFileId } from "./lib/drive";
 import { ensureActiveSession, isSupabaseConfigured, supabase } from "./lib/supabase";
-import type { AudioWork, DriveMetadata } from "./types";
+import type {
+  AudioWork,
+  AudioWorkMetadata,
+  Client,
+  DriveMetadata,
+  Project,
+} from "./types";
 
 type HubRoute = "home" | "catalogo" | "clientes" | "contratos" | "projetos" | "financeiro";
 const logoUrl = `${import.meta.env.BASE_URL}verbalizado-horizontal.png`;
@@ -43,6 +49,27 @@ function backupDateLabel(value: string | null) {
   if (!value) return "data não informada";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "data não informada";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function normalizeCatalogName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
+}
+
+function clientCatalogName(client: Client) {
+  return client.trade_name?.trim() || client.legal_name;
+}
+
+function catalogRegistrationDate(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Data não informada";
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
@@ -105,6 +132,15 @@ export default function App() {
   const [isReplacingAudio, setIsReplacingAudio] = useState(false);
   const [isUsingCatalogBackup, setIsUsingCatalogBackup] = useState(false);
   const [catalogBackupDate, setCatalogBackupDate] = useState<string | null>(null);
+  const [catalogClients, setCatalogClients] = useState<Client[]>([]);
+  const [catalogProjects, setCatalogProjects] = useState<Project[]>([]);
+  const [workMetadata, setWorkMetadata] = useState<
+    Record<string, AudioWorkMetadata>
+  >({});
+  const [metadataWork, setMetadataWork] = useState<AudioWork | null>(null);
+  const [metadataClientName, setMetadataClientName] = useState("");
+  const [metadataProjectName, setMetadataProjectName] = useState("");
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
   const [route, setRoute] = useState<HubRoute>(getHubRoute);
 
   useEffect(() => {
@@ -185,6 +221,36 @@ export default function App() {
     setIsLoading(false);
   }, []);
 
+  const loadCatalogAdminData = useCallback(async () => {
+    if (!supabase || !session) return;
+
+    const [clientsResult, projectsResult, metadataResult] = await Promise.all([
+      supabase.from("clients").select("*").order("legal_name"),
+      supabase.from("projects").select("*").order("name"),
+      supabase.from("audio_work_metadata").select("*"),
+    ]);
+
+    const firstError =
+      clientsResult.error || projectsResult.error || metadataResult.error;
+    if (firstError) {
+      setPageMessage(
+        `Não foi possível carregar as informações administrativas das obras: ${firstError.message}`,
+      );
+      return;
+    }
+
+    setCatalogClients((clientsResult.data ?? []) as Client[]);
+    setCatalogProjects((projectsResult.data ?? []) as Project[]);
+    setWorkMetadata(
+      Object.fromEntries(
+        ((metadataResult.data ?? []) as AudioWorkMetadata[]).map((metadata) => [
+          metadata.work_id,
+          metadata,
+        ]),
+      ),
+    );
+  }, [session]);
+
   useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
@@ -214,6 +280,18 @@ export default function App() {
     if (!authReady || sharedWorkId || route !== "catalogo") return;
     void loadWorks();
   }, [authReady, loadWorks, route, session, sharedWorkId]);
+
+  useEffect(() => {
+    if (!authReady || sharedWorkId || route !== "catalogo" || !session) {
+      if (!session) {
+        setCatalogClients([]);
+        setCatalogProjects([]);
+        setWorkMetadata({});
+      }
+      return;
+    }
+    void loadCatalogAdminData();
+  }, [authReady, loadCatalogAdminData, route, session, sharedWorkId]);
 
   useEffect(() => {
     if (!authReady || !sharedWorkId) return;
@@ -373,14 +451,18 @@ export default function App() {
       return;
     }
 
-    const { error: insertError } = await supabase.from("audio_works").insert({
-      drive_file_id: driveMetadata.fileId,
-      drive_url: driveUrl.trim(),
-      title: driveMetadata.title,
-      mime_type: driveMetadata.mimeType,
-      is_published: publishImmediately,
-      created_by: activeSession.user.id,
-    });
+    const { data: insertedWork, error: insertError } = await supabase
+      .from("audio_works")
+      .insert({
+        drive_file_id: driveMetadata.fileId,
+        drive_url: driveUrl.trim(),
+        title: driveMetadata.title,
+        mime_type: driveMetadata.mimeType,
+        is_published: publishImmediately,
+        created_by: activeSession.user.id,
+      })
+      .select("*")
+      .single();
 
     if (insertError) {
       setPageMessage(
@@ -398,6 +480,7 @@ export default function App() {
     setPageMessage(`“${driveMetadata.title}” foi salva no catálogo.`);
     setIsSaving(false);
     await loadWorks();
+    if (insertedWork) openWorkMetadata(insertedWork as AudioWork);
   }
 
   async function publishWork(work: AudioWork) {
@@ -413,6 +496,113 @@ export default function App() {
         : "A obra foi publicada.",
     );
     if (!error) await loadWorks();
+  }
+
+  function findCatalogClient(value: string) {
+    const normalized = normalizeCatalogName(value);
+    if (!normalized) return null;
+    return (
+      catalogClients.find(
+        (client) =>
+          normalizeCatalogName(client.legal_name) === normalized ||
+          normalizeCatalogName(client.trade_name ?? "") === normalized,
+      ) ?? null
+    );
+  }
+
+  function findCatalogProject(value: string, preferredClientId?: string | null) {
+    const normalized = normalizeCatalogName(value);
+    if (!normalized) return null;
+    const matches = catalogProjects.filter(
+      (project) => normalizeCatalogName(project.name) === normalized,
+    );
+    return (
+      matches.find((project) => project.client_id === preferredClientId) ??
+      matches[0] ??
+      null
+    );
+  }
+
+  function openWorkMetadata(work: AudioWork) {
+    const currentMetadata = workMetadata[work.id];
+    const currentProject = catalogProjects.find(
+      (project) => project.id === currentMetadata?.project_id,
+    );
+    const currentClient = catalogClients.find(
+      (client) =>
+        client.id === (currentMetadata?.client_id ?? currentProject?.client_id),
+    );
+
+    setMetadataWork(work);
+    setMetadataClientName(currentClient ? clientCatalogName(currentClient) : "");
+    setMetadataProjectName(currentProject?.name ?? "");
+    setPageMessage("");
+  }
+
+  function changeMetadataProjectName(value: string) {
+    setMetadataProjectName(value);
+    const matchingProject = findCatalogProject(value);
+    if (!matchingProject) return;
+    const projectClient = catalogClients.find(
+      (client) => client.id === matchingProject.client_id,
+    );
+    if (projectClient) setMetadataClientName(clientCatalogName(projectClient));
+  }
+
+  async function saveWorkMetadata(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !session || !metadataWork) return;
+
+    const clientInput = metadataClientName.trim();
+    const projectInput = metadataProjectName.trim();
+    if (!clientInput || !projectInput) {
+      setPageMessage("Informe o cliente e o projeto.");
+      return;
+    }
+
+    const activeSession = await ensureActiveSession();
+    if (!activeSession) {
+      setSession(null);
+      setMetadataWork(null);
+      setPageMessage("Sua sessão expirou. Entre novamente antes de salvar.");
+      return;
+    }
+
+    const matchingClient = findCatalogClient(clientInput);
+    const matchingProject = matchingClient
+      ? findCatalogProject(projectInput, matchingClient.id)
+      : null;
+    const projectClient = matchingProject
+      ? catalogClients.find((client) => client.id === matchingProject.client_id)
+      : null;
+    const resolvedClientName = projectClient
+      ? projectClient.legal_name
+      : matchingClient?.legal_name ?? clientInput;
+    const resolvedProjectName = matchingProject?.name ?? projectInput;
+
+    setIsSavingMetadata(true);
+    setPageMessage("");
+    const { error } = await supabase.rpc("save_audio_work_metadata", {
+      p_work_id: metadataWork.id,
+      p_client_name: resolvedClientName,
+      p_project_name: resolvedProjectName,
+    });
+
+    if (error) {
+      setPageMessage(
+        `Não foi possível salvar as informações: ${error.message}. Confira se a nova migração foi executada.`,
+      );
+      setIsSavingMetadata(false);
+      return;
+    }
+
+    const savedTitle = metadataWork.title;
+    await loadCatalogAdminData();
+    setMetadataWork(null);
+    setMetadataClientName("");
+    setMetadataProjectName("");
+    setIsSavingMetadata(false);
+    setPageMessage(`Informações de “${savedTitle}” salvas.`);
   }
 
   function openAudioReplacement(work: AudioWork) {
@@ -714,7 +904,7 @@ export default function App() {
           <h1>Catálogo de audiodescrições</h1>
           <p>
             {session
-              ? " "
+              ? "Arquivos centralizados no Supabase, com player e QR Code individual para cada obra publicada."
               : "Ouça as audiodescrições disponíveis e selecione uma obra para reproduzir."}
           </p>
         </div>
@@ -806,51 +996,81 @@ export default function App() {
 
         {!isLoading && works.length ? (
           <ul className="works-list">
-            {works.map((work, index) => (
-              <li key={work.id} className="work-item">
-                <span className="work-number" aria-hidden="true">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div className="work-info">
-                  <h3>{work.title}</h3>
-                  <p>
-                    Audiodescrição · {work.is_published ? "Publicada" : "Oculta"}
-                  </p>
-                </div>
-                <div className="work-actions">
-                  <button type="button" onClick={() => setSelectedWork(work)}>
-                    Ouvir
-                  </button>
-                  {work.is_published ? (
-                    <button type="button" onClick={() => setShareWork(work)}>
-                      QR Code
+            {works.map((work, index) => {
+              const metadata = workMetadata[work.id];
+              const project = catalogProjects.find(
+                (item) => item.id === metadata?.project_id,
+              );
+              const client = catalogClients.find(
+                (item) =>
+                  item.id === (metadata?.client_id ?? project?.client_id),
+              );
+
+              return (
+                <li key={work.id} className="work-item">
+                  <span className="work-number" aria-hidden="true">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className="work-info">
+                    <h3>{work.title}</h3>
+                    <p>
+                      Audiodescrição · {work.is_published ? "Publicada" : "Oculta"}
+                    </p>
+                    {session ? (
+                      <dl className="work-admin-metadata">
+                        <div>
+                          <dt>Cliente</dt>
+                          <dd>{client ? clientCatalogName(client) : "Não informado"}</dd>
+                        </div>
+                        <div>
+                          <dt>Projeto</dt>
+                          <dd>{project?.name ?? "Não informado"}</dd>
+                        </div>
+                        <div>
+                          <dt>Cadastro</dt>
+                          <dd>{catalogRegistrationDate(work.created_at)}</dd>
+                        </div>
+                      </dl>
+                    ) : null}
+                  </div>
+                  <div className="work-actions">
+                    <button type="button" onClick={() => setSelectedWork(work)}>
+                      Ouvir
                     </button>
-                  ) : null}
-                  {session ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => openAudioReplacement(work)}
-                      >
-                        Substituir áudio
+                    {work.is_published ? (
+                      <button type="button" onClick={() => setShareWork(work)}>
+                        QR Code
                       </button>
-                      {!work.is_published ? (
-                        <button type="button" onClick={() => publishWork(work)}>
-                          Publicar
+                    ) : null}
+                    {session ? (
+                      <>
+                        <button type="button" onClick={() => openWorkMetadata(work)}>
+                          {metadata ? "Editar informações" : "Adicionar informações"}
                         </button>
-                      ) : null}
-                      <button
-                        className="remove-button"
-                        type="button"
-                        onClick={() => deleteWork(work)}
-                      >
-                        Remover
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                        <button
+                          type="button"
+                          onClick={() => openAudioReplacement(work)}
+                        >
+                          Substituir áudio
+                        </button>
+                        {!work.is_published ? (
+                          <button type="button" onClick={() => publishWork(work)}>
+                            Publicar
+                          </button>
+                        ) : null}
+                        <button
+                          className="remove-button"
+                          type="button"
+                          onClick={() => deleteWork(work)}
+                        >
+                          Remover
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
       </section>
@@ -913,6 +1133,110 @@ export default function App() {
                 </button>
                 <button type="submit" disabled={isReplacingAudio}>
                   {isReplacingAudio ? "Substituindo…" : "Confirmar substituição"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {session && metadataWork ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="share-dialog work-metadata-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="work-metadata-title"
+          >
+            <button
+              className="close-dialog"
+              type="button"
+              onClick={() => setMetadataWork(null)}
+              aria-label="Fechar informações da audiodescrição"
+              disabled={isSavingMetadata}
+            >
+              ×
+            </button>
+            <p className="section-eyebrow">Informações administrativas</p>
+            <h2 id="work-metadata-title">{metadataWork.title}</h2>
+            <p className="dialog-description">
+              Estas informações aparecem somente para usuários autenticados no Hub.
+              Se o cliente ou projeto ainda não existir, ele será criado ao salvar.
+            </p>
+
+            <form onSubmit={saveWorkMetadata}>
+              <label htmlFor="work-client-name">Cliente</label>
+              <input
+                id="work-client-name"
+                type="text"
+                list="catalog-client-options"
+                required
+                autoComplete="off"
+                value={metadataClientName}
+                onChange={(event) => setMetadataClientName(event.target.value)}
+                placeholder="Digite ou selecione um cliente"
+              />
+              <datalist id="catalog-client-options">
+                {catalogClients.map((client) => (
+                  <option
+                    key={client.id}
+                    value={clientCatalogName(client)}
+                    label={
+                      client.trade_name
+                        ? `${client.trade_name} — ${client.legal_name}`
+                        : client.legal_name
+                    }
+                  />
+                ))}
+              </datalist>
+
+              <label htmlFor="work-project-name">Projeto</label>
+              <input
+                id="work-project-name"
+                type="text"
+                list="catalog-project-options"
+                required
+                autoComplete="off"
+                value={metadataProjectName}
+                onChange={(event) => changeMetadataProjectName(event.target.value)}
+                placeholder="Digite ou selecione um projeto"
+              />
+              <datalist id="catalog-project-options">
+                {catalogProjects.map((project) => {
+                  const client = catalogClients.find(
+                    (item) => item.id === project.client_id,
+                  );
+                  return (
+                    <option
+                      key={project.id}
+                      value={project.name}
+                      label={client ? clientCatalogName(client) : undefined}
+                    />
+                  );
+                })}
+              </datalist>
+
+              <label htmlFor="work-created-at">Data de cadastro</label>
+              <input
+                id="work-created-at"
+                type="text"
+                readOnly
+                value={catalogRegistrationDate(metadataWork.created_at)}
+              />
+
+              <p className="copy-message" role="status" aria-live="polite">
+                {pageMessage}
+              </p>
+              <div className="dialog-actions">
+                <button
+                  type="button"
+                  onClick={() => setMetadataWork(null)}
+                  disabled={isSavingMetadata}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" disabled={isSavingMetadata}>
+                  {isSavingMetadata ? "Salvando…" : "Salvar informações"}
                 </button>
               </div>
             </form>
