@@ -714,7 +714,7 @@ export default function App() {
           <h1>Catálogo de audiodescrições</h1>
           <p>
             {session
-              ? "Arquivos centralizados no Supabase, com player e QR Code individual para cada obra publicada."
+              ? " "
               : "Ouça as audiodescrições disponíveis e selecione uma obra para reproduzir."}
           </p>
         </div>
