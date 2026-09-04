@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 import { individualWorkUrl } from "../lib/drive";
 import type { AudioWork } from "../types";
 
-const logoUrl = `${import.meta.env.BASE_URL}verbalizado-horizontal.png`;
+const qrCardTemplateUrl = `${import.meta.env.BASE_URL}qr-card-template.jpeg`;
+const qrPosition = {
+  x: 183,
+  y: 535,
+  size: 709,
+};
 
 function loadImage(source: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -14,104 +19,38 @@ function loadImage(source: string) {
   });
 }
 
-function drawCornerBrackets(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  const radius = 28;
-  const length = 105;
-  context.save();
-  context.strokeStyle = "#111111";
-  context.lineWidth = 8;
-  context.lineCap = "round";
-
-  context.beginPath();
-  context.moveTo(x, y + length);
-  context.lineTo(x, y + radius);
-  context.quadraticCurveTo(x, y, x + radius, y);
-  context.lineTo(x + length, y);
-
-  context.moveTo(x + width - length, y);
-  context.lineTo(x + width - radius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + radius);
-  context.lineTo(x + width, y + length);
-
-  context.moveTo(x, y + height - length);
-  context.lineTo(x, y + height - radius);
-  context.quadraticCurveTo(x, y + height, x + radius, y + height);
-  context.lineTo(x + length, y + height);
-
-  context.moveTo(x + width - length, y + height);
-  context.lineTo(x + width - radius, y + height);
-  context.quadraticCurveTo(
-    x + width,
-    y + height,
-    x + width,
-    y + height - radius,
-  );
-  context.lineTo(x + width, y + height - length);
-  context.stroke();
-  context.restore();
-}
-
 async function createBrandedQrCode(qrCodeUrl: string) {
-  const [qrCode, logo] = await Promise.all([
+  const [qrCode, template] = await Promise.all([
     loadImage(qrCodeUrl),
-    loadImage(logoUrl),
+    loadImage(qrCardTemplateUrl),
   ]);
   const canvas = document.createElement("canvas");
-  canvas.width = 1080;
-  canvas.height = 1520;
+  canvas.width = template.naturalWidth;
+  canvas.height = template.naturalHeight;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Não foi possível montar o cartão do QR Code.");
 
+  context.drawImage(template, 0, 0, canvas.width, canvas.height);
+
+  // Apaga exclusivamente o QR presente no gabarito. Todo o restante da arte,
+  // incluindo símbolo AD, fontes, logo e molduras, permanece idêntico ao original.
   context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#111111";
-  context.textAlign = "center";
-  context.textBaseline = "alphabetic";
+  context.fillRect(
+    qrPosition.x - 2,
+    qrPosition.y - 2,
+    qrPosition.size + 4,
+    qrPosition.size + 4,
+  );
 
-  context.font = "900 210px Arial, Helvetica, sans-serif";
-  context.fillText("AD", 430, 245);
-
-  context.save();
-  context.strokeStyle = "#111111";
-  context.lineWidth = 25;
-  context.lineCap = "round";
-  [62, 105, 148].forEach((radius) => {
-    context.beginPath();
-    context.arc(570, 174, radius, -0.82, 0.82);
-    context.stroke();
-  });
-  context.restore();
-
-  context.font = "500 62px Arial, Helvetica, sans-serif";
-  context.fillText("AUDIODESCRIÇÃO", 540, 355);
-
-  const logoWidth = 520;
-  const logoHeight = Math.round((logo.height / logo.width) * logoWidth);
-  const logoCanvas = document.createElement("canvas");
-  logoCanvas.width = logoWidth;
-  logoCanvas.height = logoHeight;
-  const logoContext = logoCanvas.getContext("2d");
-  if (!logoContext) throw new Error("Não foi possível preparar a logo.");
-  logoContext.drawImage(logo, 0, 0, logoWidth, logoHeight);
-  logoContext.globalCompositeOperation = "source-in";
-  logoContext.fillStyle = "#111111";
-  logoContext.fillRect(0, 0, logoWidth, logoHeight);
-  context.drawImage(logoCanvas, (canvas.width - logoWidth) / 2, 390);
-
-  drawCornerBrackets(context, 95, 505, 890, 825);
   context.imageSmoothingEnabled = false;
-  context.drawImage(qrCode, 160, 540, 760, 760);
+  context.drawImage(
+    qrCode,
+    qrPosition.x,
+    qrPosition.y,
+    qrPosition.size,
+    qrPosition.size,
+  );
   context.imageSmoothingEnabled = true;
-
-  context.font = "500 46px Arial, Helvetica, sans-serif";
-  context.fillText("Escaneie o QR Code e ouça", 540, 1410);
-  context.fillText("gratuitamente a audiodescrição da obra.", 540, 1472);
 
   return canvas.toDataURL("image/png");
 }
@@ -131,8 +70,8 @@ export default function QrDialog({
   useEffect(() => {
     let active = true;
     void QRCode.toDataURL(shareUrl, {
-      width: 760,
-      margin: 4,
+      width: qrPosition.size,
+      margin: 0,
       errorCorrectionLevel: "H",
       color: { dark: "#111111", light: "#ffffff" },
     }).then((value) => {
