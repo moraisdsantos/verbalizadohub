@@ -13,12 +13,41 @@ import HomePage from "./components/HomePage";
 import HubLogin, { HubAccessLoading } from "./components/HubLogin";
 import ProjectsPage from "./components/ProjectsPage";
 import QrDialog from "./components/QrDialog";
+import { loadAudioCatalogBackup } from "./lib/audioBackup";
 import { extractDriveFileId } from "./lib/drive";
 import { ensureActiveSession, isSupabaseConfigured, supabase } from "./lib/supabase";
 import type { AudioWork, DriveMetadata } from "./types";
 
 type HubRoute = "home" | "catalogo" | "clientes" | "contratos" | "projetos" | "financeiro";
 const logoUrl = `${import.meta.env.BASE_URL}verbalizado-horizontal.png`;
+const catalogRequestTimeout = 8_000;
+
+async function withCatalogTimeout<T>(request: PromiseLike<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(request),
+      new Promise<T>((_resolve, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error("Tempo de resposta do catálogo excedido.")),
+          catalogRequestTimeout,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function backupDateLabel(value: string | null) {
+  if (!value) return "data não informada";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "data não informada";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
 
 function getHubRoute(): HubRoute {
   if (window.location.hash === "#/catalogo") return "catalogo";
@@ -71,6 +100,11 @@ export default function App() {
   const [publishImmediately, setPublishImmediately] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [shareWork, setShareWork] = useState<AudioWork | null>(null);
+  const [replaceWork, setReplaceWork] = useState<AudioWork | null>(null);
+  const [replacementDriveUrl, setReplacementDriveUrl] = useState("");
+  const [isReplacingAudio, setIsReplacingAudio] = useState(false);
+  const [isUsingCatalogBackup, setIsUsingCatalogBackup] = useState(false);
+  const [catalogBackupDate, setCatalogBackupDate] = useState<string | null>(null);
   const [route, setRoute] = useState<HubRoute>(getHubRoute);
 
   useEffect(() => {
@@ -101,22 +135,46 @@ export default function App() {
   }, [route, sharedWorkId]);
 
   const loadWorks = useCallback(async () => {
-    if (!supabase) return;
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("audio_works")
-      .select("*")
-      .order("created_at", { ascending: false });
+    let loadedWorks: AudioWork[] | null = null;
 
-    if (error) {
-      setPageMessage(
-        "Não foi possível carregar as obras. Confira a migração e as políticas do Supabase.",
-      );
-      setIsLoading(false);
-      return;
+    if (supabase) {
+      try {
+        const { data, error } = await withCatalogTimeout(
+          supabase
+            .from("audio_works")
+            .select("*")
+            .order("created_at", { ascending: false }),
+        );
+        if (!error) loadedWorks = (data ?? []) as AudioWork[];
+      } catch {
+        loadedWorks = null;
+      }
     }
 
-    const loadedWorks = (data ?? []) as AudioWork[];
+    if (!loadedWorks) {
+      try {
+        const backup = await loadAudioCatalogBackup();
+        loadedWorks = backup.works;
+        setIsUsingCatalogBackup(true);
+        setCatalogBackupDate(backup.generatedAt);
+        setPageMessage(
+          `Catálogo em modo de contingência. Exibindo o backup de ${backupDateLabel(
+            backup.generatedAt,
+          )}.`,
+        );
+      } catch {
+        setPageMessage(
+          "O catálogo principal e o backup estático estão temporariamente indisponíveis.",
+        );
+        setIsLoading(false);
+        return;
+      }
+    } else {
+      setIsUsingCatalogBackup(false);
+      setCatalogBackupDate(null);
+    }
+
     setWorks(loadedWorks);
     setSelectedWork((current) => {
       if (current) {
@@ -153,35 +211,63 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!authReady || sharedWorkId || route !== "catalogo" || !supabase) return;
+    if (!authReady || sharedWorkId || route !== "catalogo") return;
     void loadWorks();
   }, [authReady, loadWorks, route, session, sharedWorkId]);
 
   useEffect(() => {
-    if (!authReady || !sharedWorkId || !supabase) return;
+    if (!authReady || !sharedWorkId) return;
     let active = true;
     setIsLoading(true);
 
-    void supabase
-      .from("audio_works")
-      .select("*")
-      .eq("id", sharedWorkId)
-      .eq("is_published", true)
-      .single()
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error || !data) {
-          setPageMessage(
-            "Esta audiodescrição não foi encontrada ou ainda não está publicada.",
+    void (async () => {
+      let work: AudioWork | null = null;
+      let shouldTryBackup = !supabase;
+
+      if (supabase) {
+        try {
+          const { data, error } = await withCatalogTimeout(
+            supabase
+              .from("audio_works")
+              .select("*")
+              .eq("id", sharedWorkId)
+              .eq("is_published", true)
+              .single(),
           );
-          setSharedWork(null);
-        } else {
-          const work = data as AudioWork;
-          setSharedWork(work);
-          document.title = `${work.title} | ver.balizado`;
+          if (data) work = data as AudioWork;
+          shouldTryBackup = Boolean(error && error.code !== "PGRST116");
+        } catch {
+          shouldTryBackup = true;
         }
-        setIsLoading(false);
-      });
+      }
+
+      if (!work && shouldTryBackup) {
+        try {
+          const backup = await loadAudioCatalogBackup();
+          work = backup.works.find((item) => item.id === sharedWorkId) ?? null;
+          if (work) {
+            setIsUsingCatalogBackup(true);
+            setCatalogBackupDate(backup.generatedAt);
+          }
+        } catch {
+          work = null;
+        }
+      }
+
+      if (!active) return;
+      if (work) {
+        setSharedWork(work);
+        document.title = `${work.title} | ver.balizado`;
+      } else {
+        setPageMessage(
+          shouldTryBackup
+            ? "Esta audiodescrição não consta no último backup disponível."
+            : "Esta audiodescrição não foi encontrada ou ainda não está publicada.",
+        );
+        setSharedWork(null);
+      }
+      setIsLoading(false);
+    })();
 
     return () => {
       active = false;
@@ -329,6 +415,90 @@ export default function App() {
     if (!error) await loadWorks();
   }
 
+  function openAudioReplacement(work: AudioWork) {
+    setReplaceWork(work);
+    setReplacementDriveUrl("");
+    setPageMessage("");
+  }
+
+  async function replaceWorkAudio(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !session || !replaceWork) return;
+    setPageMessage("");
+
+    const activeSession = await ensureActiveSession();
+    if (!activeSession) {
+      setSession(null);
+      setReplaceWork(null);
+      setPageMessage("Sua sessão expirou. Entre novamente antes de substituir o áudio.");
+      return;
+    }
+
+    const fileId = extractDriveFileId(replacementDriveUrl);
+    if (!fileId) {
+      setPageMessage("Insira um link válido de arquivo do Google Drive.");
+      return;
+    }
+
+    setIsReplacingAudio(true);
+
+    try {
+      const result = await supabase.functions.invoke("drive-metadata", {
+        body: { driveUrl: replacementDriveUrl },
+        headers: { Authorization: `Bearer ${activeSession.access_token}` },
+      });
+
+      if (result.error) {
+        setPageMessage(await edgeFunctionErrorMessage(result.error));
+        return;
+      }
+
+      const driveMetadata = result.data as
+        | (DriveMetadata & { error?: string })
+        | null;
+      if (!driveMetadata) {
+        setPageMessage("A função drive-metadata não retornou os dados do arquivo.");
+        return;
+      }
+      if (driveMetadata.error) {
+        setPageMessage(driveMetadata.error);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("audio_works")
+        .update({
+          drive_file_id: driveMetadata.fileId,
+          drive_url: replacementDriveUrl.trim(),
+          mime_type: driveMetadata.mimeType,
+        })
+        .eq("id", replaceWork.id);
+
+      if (error) {
+        setPageMessage(
+          error.code === "23505"
+            ? "Este arquivo do Google Drive já está vinculado a outra obra."
+            : `Não foi possível substituir o áudio: ${error.message}${
+                error.code ? ` (${error.code})` : ""
+              }`,
+        );
+        return;
+      }
+
+      const replacedTitle = replaceWork.title;
+      setReplaceWork(null);
+      setReplacementDriveUrl("");
+      setPageMessage(
+        `O áudio de “${replacedTitle}” foi substituído. O link e o QR Code da obra continuam os mesmos.`,
+      );
+      await loadWorks();
+    } catch (error) {
+      setPageMessage(await edgeFunctionErrorMessage(error));
+    } finally {
+      setIsReplacingAudio(false);
+    }
+  }
+
   async function deleteWork(work: AudioWork) {
     if (!supabase || !session) return;
     if (!window.confirm(`Remover “${work.title}” do catálogo?`)) return;
@@ -344,7 +514,7 @@ export default function App() {
     if (!error) await loadWorks();
   }
 
-  if (!isSupabaseConfigured) {
+  if (!isSupabaseConfigured && !sharedWorkId && route !== "catalogo") {
     return (
       <div className="setup-screen">
         <section className="setup-card">
@@ -398,6 +568,12 @@ export default function App() {
             src={logoUrl}
             alt="ver.balizado — acessibilidade comunicacional"
           />
+          {isUsingCatalogBackup ? (
+            <p className="contingency-notice" role="status">
+              Modo de contingência: dados recuperados do backup de {" "}
+              {backupDateLabel(catalogBackupDate)}.
+            </p>
+          ) : null}
           {isLoading ? <p>Carregando audiodescrição…</p> : null}
           {!isLoading && sharedWork ? (
             <AudioPlayer work={sharedWork} autoPlay />
@@ -652,6 +828,12 @@ export default function App() {
                   ) : null}
                   {session ? (
                     <>
+                      <button
+                        type="button"
+                        onClick={() => openAudioReplacement(work)}
+                      >
+                        Substituir áudio
+                      </button>
                       {!work.is_published ? (
                         <button type="button" onClick={() => publishWork(work)}>
                           Publicar
@@ -675,6 +857,67 @@ export default function App() {
 
       {shareWork ? (
         <QrDialog work={shareWork} onClose={() => setShareWork(null)} />
+      ) : null}
+
+      {session && replaceWork ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="share-dialog replace-audio-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="replace-audio-title"
+          >
+            <button
+              className="close-dialog"
+              type="button"
+              onClick={() => setReplaceWork(null)}
+              aria-label="Fechar substituição de áudio"
+              disabled={isReplacingAudio}
+            >
+              ×
+            </button>
+            <p className="section-eyebrow">QR Code permanente</p>
+            <h2 id="replace-audio-title">Substituir áudio</h2>
+            <p className="dialog-description">
+              Informe o link público do novo arquivo para substituir o áudio de
+              <strong> “{replaceWork.title}”</strong>. O cadastro, o título, o link
+              individual e o QR Code serão preservados.
+            </p>
+            <form onSubmit={replaceWorkAudio}>
+              <label htmlFor="replacement-drive-url">
+                Novo link público do Google Drive
+              </label>
+              <input
+                id="replacement-drive-url"
+                type="url"
+                required
+                autoFocus
+                value={replacementDriveUrl}
+                onChange={(event) => setReplacementDriveUrl(event.target.value)}
+                placeholder="https://drive.google.com/file/d/…/view"
+              />
+              <p className="replacement-note">
+                Antes de salvar, confirme no Drive que o acesso está definido como
+                “Qualquer pessoa com o link”.
+              </p>
+              <p className="copy-message" role="status" aria-live="polite">
+                {pageMessage}
+              </p>
+              <div className="dialog-actions">
+                <button
+                  type="button"
+                  onClick={() => setReplaceWork(null)}
+                  disabled={isReplacingAudio}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" disabled={isReplacingAudio}>
+                  {isReplacingAudio ? "Substituindo…" : "Confirmar substituição"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       ) : null}
     </div>
   );
