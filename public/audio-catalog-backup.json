@@ -1,7 +1,277 @@
 {
   "version": 1,
-  "generated_at": "2026-11-25T13:05:48.392Z",
+  "generated_at": "2026-11-26T12:46:28.125Z",
   "works": [
+    {
+      "id": "37ab9184-f932-4c84-bbf7-bcd5a9942282",
+      "drive_file_id": "1SbK2f--vZd4bNngIcEmpYFRXkMZ8nYll",
+      "drive_url": "https://drive.google.com/file/d/1SbK2f--vZd4bNngIcEmpYFRXkMZ8nYll/view?usp=sharing",
+      "title": "Núcleo 4  TERRITÓRIOS EM MOVIMENTO: ATENÇÃO ESPECIALIZADA À SAÚDE",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:39:17.520288+00:00",
+      "updated_at": "2026-11-25T21:17:18.431541+00:00"
+    },
+    {
+      "id": "5938ab28-e06d-4d59-905c-6b6145ec5a52",
+      "drive_file_id": "1ohY-eJDToenKKOMuDxtBDpQyl-r5dgXi",
+      "drive_url": "https://drive.google.com/file/d/1ohY-eJDToenKKOMuDxtBDpQyl-r5dgXi/view?usp=sharing",
+      "title": "Núcleo 3:  PRODUZINDO BEM-VIVER NO COTIDIANO: ATENÇÃO PRIMÁRIA",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:38:56.136355+00:00",
+      "updated_at": "2026-11-25T21:16:59.085816+00:00"
+    },
+    {
+      "id": "021f4a6c-b1e5-40d7-b378-72c7b60e0aad",
+      "drive_file_id": "1ygqZlHY7L03jLcx63YZfCRlNOgTbW_wi",
+      "drive_url": "https://drive.google.com/file/d/1ygqZlHY7L03jLcx63YZfCRlNOgTbW_wi/view?usp=sharing",
+      "title": "Núcleo 2 SAÚDE INDÍGENA: MEMÓRIA, RESISTÊNCIA E DIREITOS",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:38:26.156035+00:00",
+      "updated_at": "2026-11-25T21:16:37.488681+00:00"
+    },
+    {
+      "id": "60240d3b-578f-4ce0-b9a8-a6a0b5014c9b",
+      "drive_file_id": "1F8JDO7-jRPWGBTmvLWMvgukBMVvFB4oF",
+      "drive_url": "https://drive.google.com/file/d/1F8JDO7-jRPWGBTmvLWMvgukBMVvFB4oF/view?usp=sharing",
+      "title": "Núcleo 1: MEMÓRIA E ANCESTRALIDADE: O BRASIL É TERRA INDÍGENA",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:37:47.166929+00:00",
+      "updated_at": "2026-11-25T20:36:24.927742+00:00"
+    },
+    {
+      "id": "e2398ec4-2366-4908-8567-f33e9231563d",
+      "drive_file_id": "1dAR-tC9ctwd4vHH3xpluK0wJ__rCkACI",
+      "drive_url": "https://drive.google.com/file/d/1dAR-tC9ctwd4vHH3xpluK0wJ__rCkACI/view?usp=sharing",
+      "title": "Apresentação AgSUS",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:36:48.980685+00:00",
+      "updated_at": "2026-11-25T20:07:51.163452+00:00"
+    },
+    {
+      "id": "a2b7da36-ecd1-4716-b9d4-98e69dff78c8",
+      "drive_file_id": "1M9MwXEMS8hfdvdNloC7g4wUrCKrWhTOO",
+      "drive_url": "https://drive.google.com/file/d/1M9MwXEMS8hfdvdNloC7g4wUrCKrWhTOO/view?usp=sharing",
+      "title": "Texto Curatorial",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:35:45.581935+00:00",
+      "updated_at": "2026-11-25T20:08:07.046679+00:00"
+    },
+    {
+      "id": "c22732fe-ee3d-4d6d-abf9-b350a97b39f7",
+      "drive_file_id": "164DlDbBxON-yK9yUjrBNf26bYOp3D2zo",
+      "drive_url": "https://drive.google.com/file/d/164DlDbBxON-yK9yUjrBNf26bYOp3D2zo/view?usp=sharing",
+      "title": "Política de Saude Indígena",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:34:46.880883+00:00",
+      "updated_at": "2026-11-25T20:37:56.432121+00:00"
+    },
+    {
+      "id": "d9c93d69-0ed2-43a6-8525-f124b8aea588",
+      "drive_file_id": "1p0PW5QnGZ7qdNnz8MUN57n0x3sPMCBK7",
+      "drive_url": "https://drive.google.com/file/d/1p0PW5QnGZ7qdNnz8MUN57n0x3sPMCBK7/view?usp=sharing",
+      "title": "VISTA 23",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:26:23.593001+00:00",
+      "updated_at": "2026-11-25T19:49:14.176331+00:00"
+    },
+    {
+      "id": "7a550291-fbaa-42ca-859a-5bbead625677",
+      "drive_file_id": "1TxlPKNoYUc_ys2ugoyPA8x1CcX9GAulT",
+      "drive_url": "https://drive.google.com/file/d/1TxlPKNoYUc_ys2ugoyPA8x1CcX9GAulT/view?usp=sharing",
+      "title": "VISTA 22",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:25:57.246259+00:00",
+      "updated_at": "2026-11-25T19:48:59.024798+00:00"
+    },
+    {
+      "id": "2afb78f7-c10e-4d2b-9e31-37742826488b",
+      "drive_file_id": "16WVAOD5bugPLZJ7j1L7K832zJxmU3tpj",
+      "drive_url": "https://drive.google.com/file/d/16WVAOD5bugPLZJ7j1L7K832zJxmU3tpj/view?usp=sharing",
+      "title": "VISTA 21",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:25:37.423638+00:00",
+      "updated_at": "2026-11-25T19:48:40.435678+00:00"
+    },
+    {
+      "id": "4dd049ab-e2c9-480a-9d37-7331d53b8250",
+      "drive_file_id": "1uHLmcqS-oLoeY0A7jvvAQYdNSzhVCEBb",
+      "drive_url": "https://drive.google.com/file/d/1uHLmcqS-oLoeY0A7jvvAQYdNSzhVCEBb/view?usp=sharing",
+      "title": "VISTA 20",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:25:17.55592+00:00",
+      "updated_at": "2026-11-25T19:48:21.436801+00:00"
+    },
+    {
+      "id": "5d4ad735-f321-4959-87e9-eca601748fe5",
+      "drive_file_id": "1aQmgoTWlsCxs9_NQKs5sogzX4lmQ6Uha",
+      "drive_url": "https://drive.google.com/file/d/1aQmgoTWlsCxs9_NQKs5sogzX4lmQ6Uha/view?usp=sharing",
+      "title": "VISTA 19",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:24:56.35805+00:00",
+      "updated_at": "2026-11-25T19:21:24.377556+00:00"
+    },
+    {
+      "id": "92eb837f-6a78-4925-b58f-928e8e06be20",
+      "drive_file_id": "1_e_Thu169fJ15V7HpqzbvW6khOGT1QjW",
+      "drive_url": "https://drive.google.com/file/d/1_e_Thu169fJ15V7HpqzbvW6khOGT1QjW/view?usp=sharing",
+      "title": "VISTA 18",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:24:32.555112+00:00",
+      "updated_at": "2026-11-25T19:21:11.485512+00:00"
+    },
+    {
+      "id": "058c16cc-9fa9-474c-b5e4-17667ac7524c",
+      "drive_file_id": "1mOvD_Nug-mADc0noPEdRlRERlTsFjVDJ",
+      "drive_url": "https://drive.google.com/file/d/1mOvD_Nug-mADc0noPEdRlRERlTsFjVDJ/view?usp=sharing",
+      "title": "VISTA 17",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:24:11.356165+00:00",
+      "updated_at": "2026-11-25T19:20:58.473332+00:00"
+    },
+    {
+      "id": "f1147116-32e5-41db-b625-15e827a19b8a",
+      "drive_file_id": "1YJhrjroD1xNCmXjNf2B-A9tfr8EPWPQO",
+      "drive_url": "https://drive.google.com/file/d/1YJhrjroD1xNCmXjNf2B-A9tfr8EPWPQO/view?usp=sharing",
+      "title": "VISTA 16",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:23:49.269973+00:00",
+      "updated_at": "2026-11-25T19:02:06.041968+00:00"
+    },
+    {
+      "id": "5e15000c-b2fa-423f-b131-9b1bf6fe8e70",
+      "drive_file_id": "1WH9Yko9iKCz07gtrfpebiTq82dUuDicx",
+      "drive_url": "https://drive.google.com/file/d/1WH9Yko9iKCz07gtrfpebiTq82dUuDicx/view?usp=sharing",
+      "title": "VISTA 15",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:23:30.430077+00:00",
+      "updated_at": "2026-11-25T19:01:47.100843+00:00"
+    },
+    {
+      "id": "40d40b5d-68b0-4960-857e-67fa49c39c04",
+      "drive_file_id": "1C9uTuafRDZA61FRp4Y-TySYEoSCbAtRA",
+      "drive_url": "https://drive.google.com/file/d/1C9uTuafRDZA61FRp4Y-TySYEoSCbAtRA/view?usp=sharing",
+      "title": "VISTA 14",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:23:09.660893+00:00",
+      "updated_at": "2026-11-25T19:01:27.701077+00:00"
+    },
+    {
+      "id": "0a8cb83e-0c44-4325-b15f-a12f19b07afa",
+      "drive_file_id": "1KiX81jvNaktpYzXaruo6uJzYukeE52pl",
+      "drive_url": "https://drive.google.com/file/d/1KiX81jvNaktpYzXaruo6uJzYukeE52pl/view?usp=sharing",
+      "title": "VISTA 13",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:22:50.430859+00:00",
+      "updated_at": "2026-11-25T18:16:53.303173+00:00"
+    },
+    {
+      "id": "e15663dd-5df4-4b3a-abb4-67e05d5585d2",
+      "drive_file_id": "1TVDUNhO0Qq8UkIf7Z9ktDsfq4WH-YXlG",
+      "drive_url": "https://drive.google.com/file/d/1TVDUNhO0Qq8UkIf7Z9ktDsfq4WH-YXlG/view?usp=sharing",
+      "title": "VISTA 12",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:22:30.057156+00:00",
+      "updated_at": "2026-11-25T18:16:41.008375+00:00"
+    },
+    {
+      "id": "ef6bb0c0-bc08-42a8-ad23-df4e602e1ffa",
+      "drive_file_id": "1SUhbielK6Uv6_BBScocdigX1fg89NaC2",
+      "drive_url": "https://drive.google.com/file/d/1SUhbielK6Uv6_BBScocdigX1fg89NaC2/view?usp=sharing",
+      "title": "VISTA 11",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:22:04.639734+00:00",
+      "updated_at": "2026-11-25T18:16:28.333676+00:00"
+    },
+    {
+      "id": "2d201ca7-d6be-48a1-8ca6-20d709c30a02",
+      "drive_file_id": "1TH4-SG_ir0_yz5V3bS-CFjVgvQRCLzBg",
+      "drive_url": "https://drive.google.com/file/d/1TH4-SG_ir0_yz5V3bS-CFjVgvQRCLzBg/view?usp=sharing",
+      "title": "VISTA 10",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:21:15.987918+00:00",
+      "updated_at": "2026-11-25T18:16:13.919891+00:00"
+    },
+    {
+      "id": "76fba8e9-c4d9-4c2e-9c89-7218b2b54527",
+      "drive_file_id": "1iTaIw9T-_zUrXKpHL7qinyh7GaLdoR0x",
+      "drive_url": "https://drive.google.com/file/d/1iTaIw9T-_zUrXKpHL7qinyh7GaLdoR0x/view?usp=sharing",
+      "title": "VISTA 9",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:20:50.254295+00:00",
+      "updated_at": "2026-11-25T18:15:58.298335+00:00"
+    },
+    {
+      "id": "97ba26b7-6b80-4e76-8f1e-77db132ac5cd",
+      "drive_file_id": "1ENKhEZsmuImZHHdlqXjLpx8FYGv_1blS",
+      "drive_url": "https://drive.google.com/file/d/1ENKhEZsmuImZHHdlqXjLpx8FYGv_1blS/view?usp=sharing",
+      "title": "VISTA 8",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:20:16.433589+00:00",
+      "updated_at": "2026-11-25T18:15:44.082079+00:00"
+    },
+    {
+      "id": "ba410a7b-7d2c-4b01-874d-547b4a73272b",
+      "drive_file_id": "1KzjbdPAkK1PgslGNYeE12gxeAWW7XikX",
+      "drive_url": "https://drive.google.com/file/d/1KzjbdPAkK1PgslGNYeE12gxeAWW7XikX/view?usp=sharing",
+      "title": "VISTA 7",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:18:51.571304+00:00",
+      "updated_at": "2026-11-25T18:15:27.083813+00:00"
+    },
+    {
+      "id": "4c614035-0096-42a1-a303-939a89b9291e",
+      "drive_file_id": "1wGoGnKFXvsEatmui05SD64BQwsmtteVM",
+      "drive_url": "https://drive.google.com/file/d/1wGoGnKFXvsEatmui05SD64BQwsmtteVM/view?usp=sharing",
+      "title": "VISTA 6",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:18:16.185219+00:00",
+      "updated_at": "2026-11-25T18:15:04.427787+00:00"
+    },
+    {
+      "id": "166bfc13-bd49-4db5-92fd-99c6bc2bbeb7",
+      "drive_file_id": "1dCPkKTs-6q3zRU-6Ax8_ubAirgVl3xT4",
+      "drive_url": "https://drive.google.com/file/d/1dCPkKTs-6q3zRU-6Ax8_ubAirgVl3xT4/view?usp=sharing",
+      "title": " VISTA 5",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:17:47.848549+00:00",
+      "updated_at": "2026-11-25T18:13:43.762757+00:00"
+    },
+    {
+      "id": "1b477112-0534-4366-bbae-3ad95ccbb012",
+      "drive_file_id": "12yuTmr4-GMMoZhlawAJXR49CMHJhuBOn",
+      "drive_url": "https://drive.google.com/file/d/12yuTmr4-GMMoZhlawAJXR49CMHJhuBOn/view?usp=sharing",
+      "title": "VISTA 1",
+      "mime_type": "audio/mpeg",
+      "is_published": true,
+      "created_at": "2026-11-25T13:15:14.860067+00:00",
+      "updated_at": "2026-11-25T18:14:46.394729+00:00"
+    },
     {
       "id": "315811ac-bbff-4887-81c5-4ae96a80aa0d",
       "drive_file_id": "1Lcqu7agke5pgzBIn3Sb9z4lhXqZIxzuK",
